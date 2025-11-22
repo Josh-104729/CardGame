@@ -1,0 +1,285 @@
+@font-face {
+    font-family: "MyFont";
+    src: local("MyFont"),
+         url('/frontend/public/Nationalyze-ALP.ttf'),
+         format(truetype),
+}
+
+html, body, #root {
+    height: 100%;
+}
+
+@media only screen and (min-width: 1300px) {
+    .userpp_avatar_res{
+        transform: scale(1.5);
+    }
+    .userpp_effect_res{
+        transform: scale(1.2);
+        margin-top: 15%;
+    }
+    .userpp_button_res{
+        transform: scale(1.2);
+        margin-top: 12% !important;
+    }
+}
+
+@media only screen and (min-width: 1100px) and (max-width: 1300px) {
+    .userpp_avatar_res{
+        transform: scale(1);
+    }
+    .userpp_effect_res{
+        transform: scale(1);
+    }
+    .userpp_button_res{
+        transform: scale(1);
+    }
+}
+
+@media only screen and (max-width: 1100px) {
+    .roomcontainer{
+        flex-direction: column !important;
+    }
+    .title{
+        font-size: 40px !important;
+    }
+    .userpp_avatar_res{
+        transform: scale(0.8);
+    }
+    .userpp_effect_res{
+        background-image: url('/assets/background/responsive/userpp_effect_responsive.png') !important;
+        width: 400px !important;
+        margin-top: -40px;
+        height: 50px !important;
+    }
+    .userpp_button_res{
+        transform: scale(0.8);
+        flex-direction: column !important;
+        margin-top: 20px;
+        top:60px;
+        left:30px;
+    }
+    .userfield{
+        background-color: transparent !important;
+        height:auto !important;
+        right: 0;
+        z-index: 2;
+    }
+    .userpp_name{
+        visibility: hidden;
+    }
+    .userpp_bounty_res{
+        position: absolute;
+        top:40px;
+        left:30px;
+    }
+    .userprop {
+        top:3% !important;
+        right: -100px;
+    }
+    .roomlist {
+        width: 95% !important;
+        height: 60% !important;
+        bottom:5%;
+    }
+    .search_area {
+        position: absolute !important;
+        top: 28% !important;
+    }
+}
+
+@media only screen and (max-width: 770px){
+    .scale_res{
+        transform: scale(0.5);
+    }
+    .roomcontainer{
+        background-image: url("/assets/background/responsive/room_bg_responsive.png") !important;
+    }
+    .titlebar{
+        background-image: url('/assets/background/responsive/title_bg_responsive.png') !important;
+    }
+    .userprop{
+        transform: scale(0.8);
+        right: -130px;
+    }
+    .listheader {
+        background-image: url("/assets/background/responsive/listheader_bg_responsive.png") !important;
+        width: 95% !important;
+    }
+    .createbtn {
+        transform: scale(0.6);
+        left: 0% !important;
+    }
+    .userpp_bounty_res{
+        top:50px !important;
+    }
+    .roomlist {
+        background-image: url("/assets/background/responsive/roomlist_bg_responsive.png") !important;
+        width: 90% !important;
+        height: 60% !important;
+        bottom:1% !important;
+    }
+    .headerLabel {
+        font-size: 15px !important;
+    }
+    
+    .bodylabel {
+        font-size: 15px !important;
+    }
+    .listbody {
+        width: 95% !important;
+        height: 70%;
+        justify-content: flex-start !important;
+    }
+    .search_area{
+        transform: scale(0.8);
+        top: 32% !important;
+        right:0% !important;
+    }
+    .buttonlabel{
+        transform: scale(0.3);
+        padding: 0px;   
+    }
+}
+
+.roomcontainer{
+    background-image: url("/assets/background/room_bg.png");
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: top;
+    height: 100%;
+    position: relative;
+}
+.titlebar{
+    width: 100%;
+    height: 12%;
+    background-image: url('/assets/background/title_bg.png');
+    background-size: 100% 100%;
+    position: absolute;
+    top:0;
+    z-index: 3;
+}
+.title{
+    color: #f6e9fc;
+    top:5%;
+    position: absolute;
+    font-size: 50px;
+    font-weight: bold;
+    font-style: italic;
+    font-family: MyWebFont;
+    text-shadow: 3px 3px 2px black; 
+    z-index: 2;
+}
+
+.search_area {
+    position: fixed;
+    top: 18%;
+    right: 35%;
+}
+
+.createbtn {
+    position: fixed;
+    top: 10%;
+    left: 5%;
+}
+
+.roomlist {
+    width: 61%;
+    height: 70%;
+    background-image: url("/assets/background/roomlist_bg.png");
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    position: absolute;
+    bottom:5%;
+}
+
+.listheader {
+    background-image: url("/assets/background/listheader_bg.png");
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    height: 10%;
+    width: 95%;
+    top: 7%;
+    position: absolute;
+}
+
+.headerLabel {
+    text-align: center;
+    color: white;
+    font-weight: bold;
+    font-size: 25px;
+    font-style: italic;
+}
+
+.bodylabel {
+    text-align: center;
+    color: black;
+    font-weight: bold;
+    font-size: 20px;
+    font-style: italic;
+    text-align: center;
+}
+
+.listbody {
+    top:15%;
+    position: absolute;
+    overflow: hidden;
+    width: 100%;
+    height: 70%;
+    justify-content: flex-start !important;
+}
+
+.listbodyitem {
+    border-radius: 8px;
+    background-color: white;
+    margin-top: 3%;
+    height: 25%;
+    width: 95%;
+    box-shadow: 0px 0px 15px #26adca;
+}
+
+.userfield {
+    background-color: rgba(5, 14, 26, 0.356);
+    flex:3;
+    height:100%;
+    right: 0;
+    z-index: 2;
+}
+
+.userprop {
+    top:10%;
+    position: absolute;
+}
+
+.userpp_effect{
+    background-image: url('/assets/background/userpp_effect.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    width: 300px;
+    height: 30px;
+}
+
+.userpp_button{
+    z-index: 0;
+    position: absolute;
+    margin-top: 6%;
+}
+
+.userpp_name{
+    color: white;
+    font-weight: bold;
+    font-size: 40px;
+}
+
+.row{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: row;
+}
+
+.column{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}

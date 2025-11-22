@@ -1,0 +1,17 @@
+html, body, #root {
+    background-color: white;
+}
+.Contain {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+}
+.Nav {
+    flex: 1;
+}
+.Content {
+    flex: 5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}

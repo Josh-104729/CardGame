@@ -1,0 +1,87 @@
+1. Authentication
+    - Register
+        * Fields Validation with SnackBar.
+        * Register API working with avatar or no avatar. (AvatarURL field should be null for no avatar in the database)
+        * Username Duplication notify with the SnackBar.
+    - Login
+        * Fields Validation with SnackBar.
+        * Login API working with admin approval or not. (Redirect to room page and set token field with "Bearer XXX")
+        * Login with different browsers with SnackBar. (No allow to login the same user within different browsers)
+        * Logout from room page. (Redirect to login page and reset token field in db as "------")
+    - Routing
+        * Login user redirects to room page with any non registered URLs.
+        * No login user redirects to login page with any non registered URLS.
+2. Room
+    - Create
+        * Create room notifies to room page seeing users.
+        * Create room API working with the correct bonus, fee and size. (Check with DB).
+        * Creator redirects to cardplay page.
+    - Browse
+        * Login user can browse all rooms with the pagination.
+            & Pagination not visible for 0 or 1 page list
+            & Pagination next and prev correctly get the other list of the rooms
+            & Pagination prev button disabled at 1st page.
+            & Pagination next button disabled at the last page.
+        * Search functionality working fine with the correct pagination.
+        * Room status update correctly reflects to room browse. (New Room, Status change, Room Close, Member change)
+        * Entry Availability. (Entry only available for members who have enough bounty and room is open)
+3. CardPlay
+    - Before Start (Test with or no F5)
+        * Exit 
+            & Host exit close the room and notify.
+            & Member exit update the room status and notify.
+        * Correct Members. (All joined memebers have correct information. (Username, Bounty, Avatar, isHost))
+        * Fulling room when members count are the same as room size.
+        * Current player has to place at the bottom, and order should be correct.
+        * Starts button
+            & Only visible to host.
+            & Disable when the members are less than room size.
+            & If click, starts the game with randomized cards.
+    - While Playing (Test with or no F5)
+        * Correctly randomized cards. (HavingCards, DropingCards, RestingCards, Host Turn)
+        * 10 seconds timer, and automatic pass after that.
+        * Hide Pass button
+            & When it's not current player's turn.
+            & When currnet player is son.
+        * Hide Shut button
+            & When it's not current player's turn.
+            & When there is no choosed card.
+            & When the choosed card is not valid.
+            & When the choosed card is against for the previous card while current player is not son.
+        * Hide Exit button
+            & When it's not current player's turn.
+        * Shut the card.
+            & Change the turn.
+            & Show the player's choosed card.
+            & Remove player's havingCards.
+            & Last choosedcard should be active with the red border.
+            & Reinitialize the timer for the next player.
+        * Pass the card.
+            & Change the turn.
+            & Show the pass banner for 1 sec.
+            & Reinitialize the timer for the next player.
+        * Exit Request
+            & Click Exit button changes the button title with "Cancel" and show "Exit Request" string.
+            & Click Cancel button changes the button title with "Exit" and remove "Exit Request" string.
+            & F5 should persist all the current status.
+        * Son.
+            & Son should be passed when the timer is ended.
+            & If no one shuts the card from me
+                ^ All players get one resting card if there are any available resting cards. (Recalculation - HavingCards, RestingCards)
+                ^ Become the son and available to shut any valid cards.
+        * Playing End
+            & Anyone shuts all the cards, he becomes the winner and status changes from playing to calculation
+    - While Calculation (Test with F5 or no)
+        * Show all players' having cards.
+        * Show Result Modal
+            & Modal shows winner or not.
+            & Modal shows previous bounty, earned bounty and result bounty.
+        * After 5 secs, caulcation status becomes to before start status.
+            & Exit request players go out automatically.
+            & Players who do not have enough fee for the game, go out automatically.
+            & If host goes out, the room is closed.
+            & Each player's bounty not less than 0 after the calculation even though the fee is bigger than the current bounty.
+            & Updated bounty reflects to the play page for the next play.
+            & If host starts again, the first player should be the last winner.
+
+            

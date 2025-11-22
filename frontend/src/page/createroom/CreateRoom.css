@@ -1,0 +1,35 @@
+html, body, #root {
+    height: 100%;
+}
+
+@media only screen and (max-width: 768px){
+    .abc{
+        transform: scale(0.5);
+    }
+}
+
+.abc {
+    text-align: center;
+    width: 550px;
+    height: 400px;
+    background-size: 100% 100%;
+    background-image: url('/assets/background/createroom_bg.png');
+    position: relative;
+}
+
+.sizebundle{
+    position: absolute;
+    top:18%
+}
+
+.feebundle{
+    position: absolute;
+    top:54%
+}
+
+.createroom{
+    position: absolute;
+    top:80%;
+    display:flex;
+    flex-direction: row;
+}
