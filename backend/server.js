@@ -1,3 +1,4 @@
+require("reflect-metadata");
 const express = require("express");
 const fileUpload = require('express-fileupload');
 const app = express();
@@ -35,32 +36,22 @@ if (!HOST) {
 const io = require("socket.io")(5050);
 app.set("io", io);
 
-const mysql = require("mysql");
+// TypeORM Data Source
+const AppDataSource = require("./config/database");
 
-// Force IPv4 if HOST is 'localhost' to avoid IPv6 connection issues
-// 'localhost' can resolve to IPv6 (::1) which may cause EACCES errors
-const dbHost = (HOST === 'localhost' || HOST === '::1') ? '127.0.0.1' : HOST;
-
-const db = mysql.createConnection({
-  host: dbHost,
-  user: USER,
-  password: PASSWORD,
-  database: DATABASE,
-  port: 3306
-});
-
-db.connect((err) => {
-  if (err) {
+// Initialize TypeORM connection
+AppDataSource.initialize()
+  .then(() => {
+    console.log("Connected to database via TypeORM");
+  })
+  .catch((err) => {
     console.error("Database connection error:", err.message);
     console.error("Please check:");
     console.error("1. MySQL server is running");
     console.error("2. Database credentials in .env file are correct");
     console.error("3. MySQL is listening on port 3306");
-    console.error(`4. Attempting to connect to: ${dbHost}:3306`);
     process.exit(1);
-  }
-  console.log("Connected to database");
-});
+  });
 
 const { RandomCardsGenerator } = require("./utils/randomCardsGenerator");
 const { OutputRestCards } = require("./utils/outputRestCards");
@@ -131,7 +122,7 @@ io.on('connection', function (socket) {
           data[roomId].host = username;
         }
         io.sockets.emit('update', { roomId, roomData: { ...data[roomId], counterIndex: null } });
-        updateRoomStatus(roomId, 0);
+        updateRoomStatus(roomId, 0).catch(err => console.error("Error updating room status:", err));
       }
       else {
         socket.emit("full", {
@@ -156,7 +147,7 @@ io.on('connection', function (socket) {
     }
     if (!data[roomId].isStart) {
       data[roomId].userArray.splice(index, 1);
-      updateRoomStatus(roomId, 1);
+      updateRoomStatus(roomId, 1).catch(err => console.error("Error updating room status:", err));
       io.sockets.emit('update', { roomId, roomData: { ...data[roomId], counterIndex: null } });
     } else {
       data[roomId].userArray[index].exitreq = true;
@@ -173,12 +164,12 @@ io.on('connection', function (socket) {
         io.sockets.emit('update', { roomId, roomData: { ...data[roomId], counterIndex: null } });
         socket.emit('exit', { roomId, host: false });
         socket.roomId = 0;
-        updateRoomStatus(roomId, 1);
+        updateRoomStatus(roomId, 1).catch(err => console.error("Error updating room status:", err));
       }
       else if (index === 0) {
         delete data[roomId];
         io.sockets.emit('exit', { roomId, host: true });
-        updateRoomStatus(roomId, 4);
+        updateRoomStatus(roomId, 4).catch(err => console.error("Error updating room status:", err));
       }
     }
     else if (roomId && data[roomId].isStart) {
@@ -206,7 +197,7 @@ io.on('connection', function (socket) {
     resetRoomCounterTimer(roomId);
 
     io.sockets.emit('update', { roomId, roomData: { ...data[roomId], counterIndex: null } });
-    updateRoomStatus(roomId, 2);
+    updateRoomStatus(roomId, 2).catch(err => console.error("Error updating room status:", err));
   });
 
   const increasingCounterCnt = (roomId) => {
@@ -277,9 +268,9 @@ io.on('connection', function (socket) {
       data[roomId].havingCards.map((item, index) => {
         if (item.length !== 0) data[roomId].droppingCards[index] = item;
       })
-      updateUsersBounty(data[roomId].userArray);
+      updateUsersBounty(data[roomId].userArray).catch(err => console.error("Error updating bounty:", err));
       // addGameLog(roomId, data[room])
-      createRoomLog(roomId, data[roomId].userArray, markArray);
+      createRoomLog(roomId, data[roomId].userArray, markArray).catch(err => console.error("Error creating room log:", err));
       setTimeout(() => resetUserArray(roomId), SHOW_RESULT_TIME * 1000);
     }
     else {
@@ -300,7 +291,7 @@ io.on('connection', function (socket) {
     if (data[roomId].userArray[0].bounty < data[roomId].fee || data[roomId].userArray[0].exitreq) {
       delete data[roomId];
       io.sockets.emit("exit", { roomId, host: true });
-      updateRoomStatus(roomId, 4);
+      updateRoomStatus(roomId, 4).catch(err => console.error("Error updating room status:", err));
       return;
     }
 
@@ -310,7 +301,7 @@ io.on('connection', function (socket) {
       }
       return true;
     })
-    updateRoomStatus(roomId, 5, data[roomId].userArray.length);
+    updateRoomStatus(roomId, 5, data[roomId].userArray.length).catch(err => console.error("Error updating room status:", err));
     io.sockets.emit('update', { roomId, roomData: { ...data[roomId], counterIndex: null } });
   }
 
@@ -321,152 +312,195 @@ io.on('connection', function (socket) {
   })
 
 
-  const createRoomLog = (roomid, username, bonus) => {
+  const createRoomLog = async (roomid, username, bonus) => {
+    const gameLogRepository = AppDataSource.getRepository("GameLog");
     let create_at = new Date().toISOString();
     let len = username.length;
     for (let i = 0; i < len; i++) {
-      let createRoom_query = `INSERT INTO game_logs(room_id,username,bonus,create_at) VALUES(${roomid},'${username[i].username}',${bonus[i]},'${create_at}')`
-      db.query(createRoom_query, (err, result) => {
-        if (err) console.log("Server err..");
-      })
-
+      try {
+        await gameLogRepository.insert({
+          room_id: roomid,
+          username: username[i].username,
+          bonus: bonus[i],
+          create_at: create_at
+        });
+      } catch (err) {
+        console.log("Server err..", err);
+      }
     }
-
   }
 
-  const updateRoomStatus = (roomId, status, newMembers = 0) => {
+  const updateRoomStatus = async (roomId, status, newMembers = 0) => {
     // Status: 0 => One Entry
     // Status: 1 => One Exit
     // Status: 2 => Full to Playing
     // Status: 3 => Entry to Playing
     // Status: 4 => Close
     // Status: 5 => Members Update
-    let cnt_query = `SELECT * FROM room_info WHERE room_id = '${roomId}'`;
-    db.query(cnt_query, (err, resu) => {
-      if (err) return;
-      if (!resu.length) return;
-      let room_query;
-      const members = resu[0].members;
-      const size = resu[0].size;
+    const roomInfoRepository = AppDataSource.getRepository("RoomInfo");
+    try {
+      const room = await roomInfoRepository.findOne({
+        where: { room_id: roomId }
+      });
+      if (!room) return;
+      
+      const members = room.members;
+      const size = room.size;
+      let updateData = {};
+      
       if (status === 0) {
-        room_query = `UPDATE room_info SET members='${members + 1 <= size ? members + 1 : size}', status = '${members + 1 >= size ? 1 : 0}' WHERE room_id = '${roomId}'`;
+        updateData.members = members + 1 <= size ? members + 1 : size;
+        updateData.status = members + 1 >= size ? 1 : 0;
       } else if (status === 1) {
-        room_query = `UPDATE room_info SET members='${members - 1 >= 0 ? members - 1 : 0}', status = '0' WHERE room_id = '${roomId}'`;
+        updateData.members = members - 1 >= 0 ? members - 1 : 0;
+        updateData.status = 0;
       } else if (status === 2) {
-        room_query = `UPDATE room_info SET members='${size}', status = '2' WHERE room_id = '${roomId}'`;
+        updateData.members = size;
+        updateData.status = 2;
       } else if (status === 3) {
-        room_query = `UPDATE room_info SET members='${size}', status = '1' WHERE room_id = '${roomId}'`;
+        updateData.members = size;
+        updateData.status = 1;
       } else if (status === 4) {
-        room_query = `UPDATE room_info SET members='0', status = '3' WHERE room_id = '${roomId}'`;
+        updateData.members = 0;
+        updateData.status = 3;
       } else if (status === 5) {
-        room_query = `UPDATE room_info SET members='${newMembers}', status = '0' WHERE room_id = '${roomId}'`;
+        updateData.members = newMembers;
+        updateData.status = 0;
       } else {
         return;
       }
-      db.query(room_query, () => {
-        io.sockets.emit('room_refetch');
-      });
-    });
+      
+      await roomInfoRepository.update({ room_id: roomId }, updateData);
+      io.sockets.emit('room_refetch');
+    } catch (err) {
+      console.error("Error updating room status:", err);
+    }
   }
 
-  const updateUsersBounty = (users) => {
-    users.map(i => {
-      let query = `UPDATE person_info SET bounty='${i.bounty}' WHERE username = '${i.username}'`;
-      db.query(query, (err, rev) => {
-        if (err) console.log("Server Error..");
-      });
-    });
+  const updateUsersBounty = async (users) => {
+    const personInfoRepository = AppDataSource.getRepository("PersonInfo");
+    for (const user of users) {
+      try {
+        await personInfoRepository.update(
+          { username: user.username },
+          { bounty: user.bounty }
+        );
+      } catch (err) {
+        console.log("Server Error..", err);
+      }
+    }
   }
 });
 
-app.post("/log_in", function (req, res) {
-  db.query(
-    `SELECT * FROM person_info WHERE username='${req.body.UserName}'`,
-    function (err, result) {
-      if (err) throw err;
-      let myResult = {
-        variant: "",
-        msg: ""
-      };
-      if (result.length === 0) {
-        myResult.msg += T['NO_USER_FOUND'];
-        myResult.variant += "warning";
-        res.send(myResult);
-      } else {
-        if (req.body.Password === result[0].password) {
-          if (parseInt(result[0].allowedbyadmin) === 1) {
-            if (result[0].signtoken === "------") {
-              myResult.msg += T['USER_SIGNIN_SUCCESS'];
-              myResult.variant += "success";
-              myResult = {
-                ...myResult,
-                bounty: result[0].bounty,
-                username: result[0].username,
-                avatar: result[0].avatar_url
-              };
-              const payload = {
-                name: req.body.UserName,
-                password: req.body.Password
-              }; //  Create JWT PayLoad
-              //  Sign Token
-              jwt.sign(
-                payload,
-                secretOrKey,
-                { expiresIn: 10800 },
-                (err, token) => {
-                  myResult.token = "Bearer " + token;
-                  let query = `UPDATE person_info SET signtoken = '${myResult.token
-                    }' WHERE username = '${req.body.UserName}'`;
-                  db.query(query, function (err, resu) {
-                    if (resu) {
-                      res.send(myResult);
-                    }
-                  });
-                }
-              );
-            } else {
-              myResult.msg += T['USER_SIGNIN_DUPLICATE'];
-              myResult.variant += "error";
-              myResult.token = "404";
-              res.send(myResult);
-            }
+app.post("/log_in", async function (req, res) {
+  const personInfoRepository = AppDataSource.getRepository("PersonInfo");
+  try {
+    const result = await personInfoRepository.findOne({
+      where: { username: req.body.UserName }
+    });
+    
+    let myResult = {
+      variant: "",
+      msg: ""
+    };
+    
+    if (!result) {
+      myResult.msg += T['NO_USER_FOUND'];
+      myResult.variant += "warning";
+      res.send(myResult);
+    } else {
+      if (req.body.Password === result.password) {
+        if (parseInt(result.allowedbyadmin) === 1) {
+          if (result.signtoken === "------") {
+            myResult.msg += T['USER_SIGNIN_SUCCESS'];
+            myResult.variant += "success";
+            myResult = {
+              ...myResult,
+              bounty: result.bounty,
+              username: result.username,
+              avatar: result.avatar_url
+            };
+            const payload = {
+              name: req.body.UserName,
+              password: req.body.Password
+            }; //  Create JWT PayLoad
+            //  Sign Token
+            jwt.sign(
+              payload,
+              secretOrKey,
+              { expiresIn: 10800 },
+              async (err, token) => {
+                if (err) throw err;
+                myResult.token = "Bearer " + token;
+                await personInfoRepository.update(
+                  { username: req.body.UserName },
+                  { signtoken: myResult.token }
+                );
+                res.send(myResult);
+              }
+            );
           } else {
-            myResult.msg += T['USER_SIGNIN_PERMISSION_NEEDED'];
-            myResult.variant += "info";
+            myResult.msg += T['USER_SIGNIN_DUPLICATE'];
+            myResult.variant += "error";
+            myResult.token = "404";
             res.send(myResult);
           }
         } else {
-          myResult.msg += T['USER_SIGNIN_INCORRECT_PASSWORD'];
-          myResult.variant += "warning";
+          myResult.msg += T['USER_SIGNIN_PERMISSION_NEEDED'];
+          myResult.variant += "info";
           res.send(myResult);
         }
+      } else {
+        myResult.msg += T['USER_SIGNIN_INCORRECT_PASSWORD'];
+        myResult.variant += "warning";
+        res.send(myResult);
       }
     }
-  );
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).send({ variant: "error", msg: "Server error" });
+  }
 });
 
-app.post("/register", function (req, res) {
+app.post("/register", async function (req, res) {
+  const personInfoRepository = AppDataSource.getRepository("PersonInfo");
   let myResult = {
     variant: "",
     msg: "",
   };
-  db.query(
-    `SELECT * FROM person_info WHERE username='${req.body.UserName}'`,
-    function (err, result) {
-      if (err || result.length === 0) {
-        let create_at = new Date().toISOString();
-        db.query(
-          `INSERT INTO person_info(full_name,username,password,bounty,signtoken,birthdate,gender,allowedbyadmin,email, avatar_url,create_at) VALUES ('${req.body.Name}','${req.body.UserName}','${req.body.Password}',${INITIAL_BOUNTY},'------','${req.body.BirthDay}','${req.body.Gender}','${req.body.AllowedByAdmin}', '${req.body.Email}','${req.body.AvatarUrl}','${create_at}')`
-        );
-        myResult.variant = "success";
-        myResult.msg += T['USER_SIGNUP_SUCCESS'];
-      } else {
-        myResult.variant = "warning";
-        myResult.msg += T['USER_SIGNUP_DUPLICATE'];
-      }
-      res.send(myResult);
+  try {
+    const existingUser = await personInfoRepository.findOne({
+      where: { username: req.body.UserName }
+    });
+    
+    if (!existingUser) {
+      let create_at = new Date().toISOString();
+      await personInfoRepository.insert({
+        full_name: req.body.Name,
+        username: req.body.UserName,
+        password: req.body.Password,
+        bounty: INITIAL_BOUNTY,
+        signtoken: "------",
+        birthdate: req.body.BirthDay,
+        gender: req.body.Gender,
+        allowedbyadmin: req.body.AllowedByAdmin,
+        email: req.body.Email,
+        avatar_url: req.body.AvatarUrl,
+        create_at: create_at
+      });
+      myResult.variant = "success";
+      myResult.msg += T['USER_SIGNUP_SUCCESS'];
+    } else {
+      myResult.variant = "warning";
+      myResult.msg += T['USER_SIGNUP_DUPLICATE'];
     }
-  );
+    res.send(myResult);
+  } catch (err) {
+    console.error("Register error:", err);
+    myResult.variant = "error";
+    myResult.msg = "Server error";
+    res.status(500).send(myResult);
+  }
 });
 
 app.post("/upload", function (req, res) {
@@ -488,72 +522,117 @@ app.post("/upload", function (req, res) {
   });
 });
 
-app.post("/clear_tk", function (req, res) {
+app.post("/clear_tk", async function (req, res) {
+  const personInfoRepository = AppDataSource.getRepository("PersonInfo");
   let myResult = {
     status: "",
   };
-  let query = `UPDATE person_info SET signtoken = '------' WHERE username = '${req.body.UserName}'`;
-  db.query(query, function (err, result) {
-    if (err) {
-      myResult.status = 0;
-    } else myResult.status = 1;
+  try {
+    await personInfoRepository.update(
+      { username: req.body.UserName },
+      { signtoken: "------" }
+    );
+    myResult.status = 1;
     res.send(myResult);
-  });
+  } catch (err) {
+    console.error("Clear token error:", err);
+    myResult.status = 0;
+    res.send(myResult);
+  }
 });
 
-app.post("/validate_token", function (req, res) {
+app.post("/validate_token", async function (req, res) {
+  const personInfoRepository = AppDataSource.getRepository("PersonInfo");
   let myResult = {
     status: "",
   };
-  let query = `SELECT * from person_info WHERE signtoken = '${req.body.token}'`;
-  db.query(query, function (err, result) {
-    if (err) {
-      myResult.status = 0;
-    } else if (result.length === 0) {
+  try {
+    const result = await personInfoRepository.findOne({
+      where: { signtoken: req.body.token }
+    });
+    if (!result) {
       myResult.status = 0;
     } else {
       myResult.status = 1;
-      myResult.user = result[0];
+      myResult.user = result;
     }
     res.send(myResult);
-  });
+  } catch (err) {
+    console.error("Validate token error:", err);
+    myResult.status = 0;
+    res.send(myResult);
+  }
 });
 
-app.post("/create_room", function (req, res) {
+app.post("/create_room", async function (req, res) {
+  const roomInfoRepository = AppDataSource.getRepository("RoomInfo");
+  const roomLogInfoRepository = AppDataSource.getRepository("RoomLogInfo");
   let new_result = {
     msg: "",
     roomID: -1
   };
-  db.query(`SELECT creator FROM room_info WHERE creator = '${req.body.creator}' AND status = 0`, function (err, result) {
-    if (result.length > 0) {
+  try {
+    const existingRoom = await roomInfoRepository.findOne({
+      where: { creator: req.body.creator, status: 0 }
+    });
+    
+    if (existingRoom) {
       new_result = {
         variant: 'warning',
         msg: T['CREATE_ROOM_DUPLICATE'],
         roomID: -1
       };
       res.send(new_result);
-    }
-    else {
+    } else {
       let create_at = new Date().toISOString();
-      db.query(`INSERT INTO room_info(creator,bonus,fee,size,status,created_at,updated_at,members) VALUES ('${req.body.creator}','${req.body.bonus}','${req.body.fee}','${req.body.size}','${req.body.status}', '${create_at}','${create_at}','0')`, function (err1, result1) {
-        if (err1) throw err1;
-        db.query(`SELECT room_id FROM room_info WHERE creator = '${req.body.creator}' AND status = 0`, function (err2, result2) {
-          if (err2) throw err2;
-          new_result = {
-            variant: "success",
-            msg: T['CREATE_ROOM_SUCCESS'],
-            roomID: result2[0].room_id,
-          }
-          io.sockets.emit('room_refetch');
-          res.send(new_result);
-        })
+      await roomInfoRepository.insert({
+        creator: req.body.creator,
+        bonus: req.body.bonus,
+        fee: req.body.fee,
+        size: req.body.size,
+        status: req.body.status,
+        created_at: create_at,
+        updated_at: create_at,
+        members: 0
       });
-      db.query(`INSERT INTO room_log_info(creator,bonus,fee,size,status,created_at,updated_at,members) VALUES ('${req.body.creator}','${req.body.bonus}','${req.body.fee}','${req.body.size}','${req.body.status}', '${create_at}','${create_at}','1')`);
+      
+      const createdRoom = await roomInfoRepository.findOne({
+        where: { creator: req.body.creator, status: 0 }
+      });
+      
+      new_result = {
+        variant: "success",
+        msg: T['CREATE_ROOM_SUCCESS'],
+        roomID: createdRoom.room_id,
+      };
+      
+      await roomLogInfoRepository.insert({
+        creator: req.body.creator,
+        bonus: req.body.bonus,
+        fee: req.body.fee,
+        size: req.body.size,
+        status: req.body.status,
+        created_at: create_at,
+        updated_at: create_at,
+        members: 1
+      });
+      
+      io.sockets.emit('room_refetch');
+      res.send(new_result);
     }
-  });
+  } catch (err) {
+    console.error("Create room error:", err);
+    new_result = {
+      variant: "error",
+      msg: "Server error",
+      roomID: -1
+    };
+    res.status(500).send(new_result);
+  }
 });
 
-app.post("/get_rooms", function (req, res) {
+app.post("/get_rooms", async function (req, res) {
+  const roomInfoRepository = AppDataSource.getRepository("RoomInfo");
   let resValue = new Object();
   let search_key;
   let pgSize = 100;
@@ -567,14 +646,27 @@ app.post("/get_rooms", function (req, res) {
   if (req.body.pgNum) {
     pgNum = parseInt(req.body.pgNum) - 1;
   } else pgNum = 1;
-  let query = `SELECT * FROM room_info WHERE status < 3 AND (creator LIKE '%${search_key}%' OR room_id LIKE '%${search_key}%') ORDER BY room_id DESC LIMIT ${pgSize} OFFSET ${pgNum * pgSize
-    }`;
-  let query_2 = `SELECT COUNT(X.room_id) AS total_cnt FROM (SELECT * FROM room_info WHERE status < 3 AND (creator LIKE '%${search_key}%' OR room_id LIKE '%${search_key}%')) AS X`;
-  db.query(query, function (err, result) {
-    db.query(query_2, function (err, result1) {
-      resValue.data = result;
-      resValue.total = result1;
-      res.send(resValue);
-    });
-  });
+  
+  try {
+    const queryBuilder = roomInfoRepository.createQueryBuilder("room_info")
+      .where("room_info.status < :status", { status: 3 })
+      .andWhere(
+        "(room_info.creator LIKE :search OR CAST(room_info.room_id AS CHAR) LIKE :search)",
+        { search: `%${search_key}%` }
+      )
+      .orderBy("room_info.room_id", "DESC")
+      .skip(pgNum * pgSize)
+      .take(pgSize);
+    
+    const [result, total] = await queryBuilder.getManyAndCount();
+    
+    resValue.data = result;
+    resValue.total = [{ total_cnt: total }];
+    res.send(resValue);
+  } catch (err) {
+    console.error("Get rooms error:", err);
+    resValue.data = [];
+    resValue.total = [{ total_cnt: 0 }];
+    res.status(500).send(resValue);
+  }
 });
