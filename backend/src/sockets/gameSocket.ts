@@ -1,4 +1,5 @@
-import { Server as SocketIOServer } from "socket.io";
+import io from "socket.io";
+import { Card } from "../types/card";
 import { RoomData, RoomUser, SocketJoinParams, SocketExitParams, SocketStartGameParams, SocketShutCardsParams, SocketPassCardsParams } from "../types";
 import { RandomCardsGenerator } from "../utils/randomCardsGenerator";
 import { OutputRestCards } from "../utils/outputRestCards";
@@ -14,6 +15,8 @@ import {
   SHOW_RESULT_TIME,
 } from "../constants/variables";
 import { T } from "../constants/texts";
+
+type SocketIOServer = ReturnType<typeof io>;
 
 export class GameSocketHandler {
   private io: SocketIOServer;
@@ -52,9 +55,9 @@ export class GameSocketHandler {
     if (!this.data[roomId]) {
       this.data[roomId] = {
         userArray: [],
-        havingCards: Array.from(Array(size), () => []),
-        droppingCards: Array.from(Array(size), () => []),
-        restingCards: [],
+        havingCards: Array.from(Array(size), () => [] as Card[]),
+        droppingCards: Array.from(Array(size), () => [] as Card[]),
+        restingCards: [] as Card[],
         order: 0,
         cycleCnt: 0,
         isStart: false,
@@ -183,12 +186,12 @@ export class GameSocketHandler {
       INITIAL_HANDCARDS_COUNT,
       TOTAL_CARDS_COUNT
     );
-    this.data[roomId].havingCards = Array.from(Array(this.data[roomId].size!), () => []);
+    this.data[roomId].havingCards = Array.from(Array(this.data[roomId].size!), () => [] as Card[]);
     this.data[roomId].havingCards.forEach((item, index) => {
       item.push(...randomcards.players[index]);
     });
     this.data[roomId].restingCards = randomcards.rest_cards;
-    this.data[roomId].droppingCards = Array.from(Array(this.data[roomId].size!), () => []);
+    this.data[roomId].droppingCards = Array.from(Array(this.data[roomId].size!), () => [] as Card[]);
     this.data[roomId].isStart = true;
     this.data[roomId].order = this.data[roomId].prevOrder;
     this.data[roomId].restCardCnt = TOTAL_CARDS_COUNT - this.data[roomId].size! * INITIAL_HANDCARDS_COUNT;
@@ -303,7 +306,7 @@ export class GameSocketHandler {
         OutputSortedCardArray(this.data[roomId].havingCards[i]);
       }
       this.data[roomId].restCardCnt = this.data[roomId].restCardCnt - this.data[roomId].size!;
-      this.data[roomId].droppingCards = Array.from(Array(this.data[roomId].size!), () => []);
+      this.data[roomId].droppingCards = Array.from(Array(this.data[roomId].size!), () => [] as Card[]);
     }
     this.data[roomId].cycleCnt = (this.data[roomId].cycleCnt + 1) % this.data[roomId].size!;
 
@@ -316,8 +319,8 @@ export class GameSocketHandler {
 
   private resetUserArray(roomId: number): void {
     this.data[roomId].isStart = false;
-    this.data[roomId].havingCards = Array.from(Array(this.data[roomId].size!), () => []);
-    this.data[roomId].droppingCards = Array.from(Array(this.data[roomId].size!), () => []);
+    this.data[roomId].havingCards = Array.from(Array(this.data[roomId].size!), () => [] as Card[]);
+    this.data[roomId].droppingCards = Array.from(Array(this.data[roomId].size!), () => [] as Card[]);
     this.data[roomId].double = 1;
 
     if (

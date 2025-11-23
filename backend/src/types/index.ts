@@ -108,11 +108,13 @@ export interface RoomUser {
   src: string;
 }
 
+import { Card } from "./card";
+
 export interface RoomData {
   userArray: RoomUser[];
-  havingCards: number[][];
-  droppingCards: number[][];
-  restingCards: number[];
+  havingCards: Card[][];
+  droppingCards: Card[][];
+  restingCards: Card[];
   order: number;
   cycleCnt: number;
   isStart: boolean;

@@ -2,7 +2,7 @@ import "reflect-metadata";
 import dotenv from "dotenv";
 import { createApp } from "./app";
 import { AppDataSource } from "./config/database";
-import { Server as SocketIOServer } from "socket.io";
+import io from "socket.io";
 import { GameSocketHandler } from "./sockets/gameSocket";
 
 dotenv.config();
@@ -27,17 +27,17 @@ const server = app.listen(PORT, () => {
 
 // Socket.IO Server
 const SOCKET_PORT = 5050;
-const io = new SocketIOServer(SOCKET_PORT, {
+const socketServer = io(SOCKET_PORT, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
   },
 });
 
-app.set("io", io);
+app.set("io", socketServer);
 
 // Initialize Socket Handlers
-new GameSocketHandler(io);
+new GameSocketHandler(socketServer);
 
 // Initialize TypeORM
 AppDataSource.initialize()
@@ -45,6 +45,7 @@ AppDataSource.initialize()
     console.log("Connected to database via TypeORM");
   })
   .catch((err) => {
+    console.log(err);
     console.error("Database connection error:", err.message);
     console.error("Please check:");
     console.error("1. MySQL server is running");

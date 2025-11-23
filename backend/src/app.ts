@@ -1,7 +1,7 @@
 import express, { Application } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-import * as fileUpload from "express-fileupload";
+import fileUpload from "express-fileupload";
 import path from "path";
 import routes from "./routes";
 

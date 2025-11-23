@@ -4,6 +4,7 @@ import { PersonInfoService } from "../services/PersonInfoService";
 import { T } from "../constants/texts";
 import { secretOrKey } from "../constants/config";
 import { INITIAL_BOUNTY } from "../constants/variables";
+import { hashPassword, comparePassword } from "../utils/passwordUtils";
 import {
   LoginRequest,
   RegisterRequest,
@@ -26,6 +27,9 @@ export class AuthController {
       const { UserName, Password } = req.body;
       const result = await this.personInfoService.findByUsername(UserName);
 
+      console.log(result);
+      console.log(Password);
+
       const myResult: LoginResponse = {
         variant: "",
         msg: "",
@@ -38,7 +42,26 @@ export class AuthController {
         return;
       }
 
-      if (Password !== result.password) {
+      // Check if password is hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+      // This handles backward compatibility with existing plain text passwords
+      const isPasswordHashed = result.password.startsWith("$2a$") || 
+                                result.password.startsWith("$2b$") || 
+                                result.password.startsWith("$2y$");
+      
+      let passwordMatch = false;
+      if (isPasswordHashed) {
+        passwordMatch = await comparePassword(Password, result.password);
+      } else {
+        // Backward compatibility: compare plain text and then hash it for future use
+        passwordMatch = Password === result.password;
+        if (passwordMatch) {
+          // Migrate plain text password to hashed password
+          const hashedPassword = await hashPassword(Password);
+          await this.personInfoService.update(result.username, { password: hashedPassword });
+        }
+      }
+
+      if (!passwordMatch) {
         myResult.msg = T.USER_SIGNIN_INCORRECT_PASSWORD;
         myResult.variant = "warning";
         res.send(myResult);
@@ -66,9 +89,9 @@ export class AuthController {
       myResult.username = result.username;
       myResult.avatar = result.avatar_url;
 
+      // JWT payload should not include password for security
       const payload = {
         name: UserName,
-        password: Password,
       };
 
       jwt.sign(
@@ -123,10 +146,12 @@ export class AuthController {
       }
 
       const create_at = new Date().toISOString();
+      // Hash password before storing in database
+      const hashedPassword = await hashPassword(Password);
       await this.personInfoService.create({
         full_name: Name,
         username: UserName,
-        password: Password,
+        password: hashedPassword,
         bounty: INITIAL_BOUNTY,
         signtoken: "------",
         birthdate: BirthDay,
