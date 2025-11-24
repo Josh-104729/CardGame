@@ -1,10 +1,19 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import GameHeader from '../components/GameHeader'
 import RoomList from '../components/RoomList'
+import CreateRoomModal from '../components/CreateRoomModal'
 import ProtectedRoute from '../components/ProtectedRoute'
 
 export default function LobbyPage() {
   const navigate = useNavigate()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const handleRoomCreated = () => {
+    // Refresh the room list
+    setRefreshTrigger((prev) => prev + 1)
+  }
 
   return (
     <ProtectedRoute>
@@ -18,7 +27,7 @@ export default function LobbyPage() {
             </div>
             <div className="flex gap-4 mb-6">
               <button
-                onClick={() => navigate('/create-room')}
+                onClick={() => setIsModalOpen(true)}
                 className="px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-semibold rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 🏠 Create New Room
@@ -29,9 +38,15 @@ export default function LobbyPage() {
                 // Navigate to game page with room ID
                 navigate(`/game/${roomId}`)
               }}
+              refreshTrigger={refreshTrigger}
             />
           </div>
         </div>
+        <CreateRoomModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSuccess={handleRoomCreated}
+        />
       </div>
     </ProtectedRoute>
   )

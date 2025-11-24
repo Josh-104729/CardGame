@@ -7,6 +7,8 @@ import type {
   ValidateTokenResponse,
   GetRoomsRequest,
   GetRoomsResponse,
+  CreateRoomRequest,
+  CreateRoomResponse,
 } from '../types/api';
 import { tokenUtils } from '../utils/token';
 
@@ -119,6 +121,13 @@ class ApiService {
         pgSize: params.pgSize || 10,
         pgNum: params.pgNum || 1,
       }),
+    });
+  }
+
+  async createRoom(data: CreateRoomRequest): Promise<CreateRoomResponse> {
+    return this.request<CreateRoomResponse>(API_ENDPOINTS.CREATE_ROOM, {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 }

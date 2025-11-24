@@ -88,3 +88,15 @@ export interface GetRoomsResponse {
   total: Array<{ total_cnt: number }>;
 }
 
+export interface CreateRoomRequest {
+  creator: string;
+  bonus: number;
+  fee: number;
+  size: number;
+  status: number;
+}
+
+export interface CreateRoomResponse extends ApiResponse {
+  roomID: number;
+}
+
