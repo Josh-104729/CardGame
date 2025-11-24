@@ -27,9 +27,6 @@ export class AuthController {
       const { UserName, Password } = req.body;
       const result = await this.personInfoService.findByUsername(UserName);
 
-      console.log(result);
-      console.log(Password);
-
       const myResult: LoginResponse = {
         variant: "",
         msg: "",
