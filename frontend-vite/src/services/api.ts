@@ -9,6 +9,7 @@ import type {
   GetRoomsResponse,
   CreateRoomRequest,
   CreateRoomResponse,
+  RoomInfo,
 } from '../types/api';
 import { tokenUtils } from '../utils/token';
 
@@ -129,6 +130,17 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async getRoomInfo(roomId: number): Promise<RoomInfo | null> {
+    try {
+      const response = await this.getRooms({ search_key: roomId.toString(), pgSize: 1, pgNum: 1 });
+      const room = response.data?.find((r) => r.room_id === roomId);
+      return room || null;
+    } catch (error) {
+      console.error('Error fetching room info:', error);
+      return null;
+    }
   }
 }
 

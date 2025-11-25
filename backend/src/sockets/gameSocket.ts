@@ -77,40 +77,54 @@ export class GameSocketHandler {
     if (!this.data[roomId].size) this.data[roomId].size = size;
 
     if (!this.data[roomId].isStart) {
-      if (this.data[roomId].userArray.length < this.data[roomId].size!) {
-        if (this.data[roomId].userArray.findIndex((user) => user.username === socket.user) < 0) {
-          if (this.data[roomId].host === username) {
-            this.data[roomId].userArray.unshift({
-              username,
-              bounty,
-              exitreq: false,
-              src: avatarUrl,
-            });
-          } else {
-            this.data[roomId].userArray.push({
-              username,
-              bounty,
-              exitreq: false,
-              src: avatarUrl,
-            });
-          }
-        }
-        if (!this.data[roomId].host) {
-          this.data[roomId].host = username;
-        }
+      const userIndex = this.data[roomId].userArray.findIndex((user) => user.username === socket.user);
+      
+      // If user is already in the room, just send update
+      if (userIndex >= 0) {
         this.io.sockets.emit("update", {
           roomId,
           roomData: { ...this.data[roomId], counterIndex: null },
         });
-        this.updateRoomStatus(roomId, 0).catch((err) =>
-          console.error("Error updating room status:", err)
-        );
-      } else {
+        return;
+      }
+
+      // Check if room has space for new user
+      if (this.data[roomId].userArray.length >= this.data[roomId].size!) {
         socket.emit("full", {
           msg: T.ROOM_FULL_MSG,
           variant: "error",
         });
+        return;
       }
+
+      // Add new user to room
+      if (this.data[roomId].host === username) {
+        this.data[roomId].userArray.unshift({
+          username,
+          bounty,
+          exitreq: false,
+          src: avatarUrl,
+        });
+      } else {
+        this.data[roomId].userArray.push({
+          username,
+          bounty,
+          exitreq: false,
+          src: avatarUrl,
+        });
+      }
+      
+      if (!this.data[roomId].host) {
+        this.data[roomId].host = username;
+      }
+      
+      this.io.sockets.emit("update", {
+        roomId,
+        roomData: { ...this.data[roomId], counterIndex: null },
+      });
+      this.updateRoomStatus(roomId, 0).catch((err) =>
+        console.error("Error updating room status:", err)
+      );
     } else {
       socket.emit("update", {
         roomId,
