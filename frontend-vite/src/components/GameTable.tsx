@@ -1,8 +1,9 @@
 import Card from './Card'
 import OpponentPlayer from './OpponentPlayer'
+import type { Card as GameCard } from '../utils/cardValidation'
 
 interface GameTableProps {
-  centerCards?: Array<{ suit: number; rank: number }>
+  centerCards?: GameCard[]
   opponents?: Array<{ name: string; cardCount: number; position: 'top' | 'left' | 'right'; isActive?: boolean }>
 }
 
@@ -22,11 +23,25 @@ export default function GameTable({ centerCards = [], opponents = [] }: GameTabl
 
       {/* Center Cards */}
       <div className="z-10">
-        {centerCards.length > 0 ? (
+        {centerCards && centerCards.length > 0 ? (
           <div className="flex gap-4 items-center justify-center">
-            {centerCards.map((card, index) => (
-              <Card key={index} suit={card.suit} rank={card.rank} />
-            ))}
+            {centerCards.map((card, index) => {
+              // Convert game card format to display format
+              if (card.type >= 4) {
+                // Special card (Ta/So)
+                return (
+                  <div
+                    key={index}
+                    className="w-20 h-28 bg-gradient-to-br from-purple-900 to-purple-700 rounded-lg border-2 border-purple-500 flex items-center justify-center"
+                  >
+                    <span className="text-white text-xl">
+                      {card.type === 4 ? '소' : '따'}
+                    </span>
+                  </div>
+                )
+              }
+              return <Card key={index} suit={card.type} rank={card.number} />
+            })}
           </div>
         ) : (
           <div className="text-teal-300/50 text-lg font-semibold">

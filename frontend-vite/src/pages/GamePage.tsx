@@ -11,6 +11,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { apiService } from '../services/api'
 import { SOCKET_URL } from '../config/api'
 import type { RoomInfo } from '../types/api'
+import type { Card } from '../utils/cardValidation'
+import { guessValidationCheck } from '../utils/cardValidation'
+import { cardCompareUtil } from '../utils/cardCompare'
 
 interface RoomUser {
   username: string
@@ -49,6 +52,10 @@ export default function GamePage() {
   const [roomData, setRoomData] = useState<RoomData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
+  const [selectedCards, setSelectedCards] = useState<Card[]>([])
+  const [canPlay, setCanPlay] = useState(false)
+  const [myIndex, setMyIndex] = useState(-1)
+  const [hostFrom, setHostFrom] = useState(0)
 
   useEffect(() => {
     const initializeRoom = async () => {
@@ -98,10 +105,23 @@ export default function GamePage() {
             setLoading(false)
             setError('')
             
-            // Check if current user is still in the room
+            // Find current user's index
             const userIndex = param.roomData.userArray.findIndex(
               (u) => u.username === user.username
             )
+            setMyIndex(userIndex)
+            
+            // Set host from index (for reordering)
+            if (userIndex > -1) {
+              setHostFrom(userIndex)
+            }
+            
+            // Clear selection when counter resets
+            if (param.roomData.counterCnt === 0) {
+              setSelectedCards([])
+            }
+            
+            // Check if current user is still in the room
             if (userIndex === -1 && param.roomData.isStart) {
               // User was removed from the room
               setError('You were removed from the room')
@@ -154,6 +174,45 @@ export default function GamePage() {
     }
   }, [roomId, user, navigate])
 
+  // Check if cards can be played - MUST be before any conditional returns
+  useEffect(() => {
+    if (!roomData || !roomData.isStart || myIndex === -1) {
+      setCanPlay(false)
+      return
+    }
+
+    const isMyTurn = roomData.order === myIndex
+    if (!isMyTurn) {
+      setCanPlay(false)
+      return
+    }
+
+    if (selectedCards.length === 0) {
+      setCanPlay(false)
+      return
+    }
+
+    // Validate card selection
+    const validation = guessValidationCheck(selectedCards)
+    if (validation.status === 0) {
+      setCanPlay(false)
+      return
+    }
+
+    // Check if cards can beat previous cards
+    const lastOrder = roomData.prevOrder
+    const previousCards = roomData.droppingCards[lastOrder] || []
+    
+    if (lastOrder === roomData.order || previousCards.length === 0) {
+      // First play or same player's turn
+      setCanPlay(selectedCards.length > 0)
+    } else {
+      // Need to beat previous cards
+      const canBeat = cardCompareUtil(previousCards, selectedCards)
+      setCanPlay(canBeat)
+    }
+  }, [selectedCards, roomData, myIndex])
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -191,8 +250,77 @@ export default function GamePage() {
     )
   }
 
+  const handleCardSelectionChange = (cards: Card[]) => {
+    setSelectedCards(cards)
+  }
+
+  const handlePlayCards = () => {
+    if (!socketRef.current || !roomId || selectedCards.length === 0 || !canPlay) {
+      return
+    }
+
+    const validation = guessValidationCheck(selectedCards)
+    if (validation.status === 0) {
+      setError(validation.msg)
+      return
+    }
+
+    let double = roomData?.double || 1
+    let effectOpen = false
+    let effectkind = ''
+
+    // Check for special effects
+    if (validation.status === 3) {
+      // Madae
+      double *= 2
+      effectOpen = true
+      effectkind = 'madae'
+    } else if (validation.status === 4) {
+      // Taso
+      double *= 2
+      effectOpen = true
+      effectkind = 'tawang'
+    }
+
+    socketRef.current.emit('shutcards', {
+      choosedCard: selectedCards,
+      roomId: parseInt(roomId, 10),
+      double: double,
+      effectOpen: effectOpen,
+      effectkind: effectkind,
+    })
+
+    setSelectedCards([])
+  }
+
+  const handlePass = () => {
+    if (!socketRef.current || !roomId) return
+    socketRef.current.emit('passcards', {
+      roomId: parseInt(roomId, 10),
+    })
+    setSelectedCards([])
+  }
+
+  const handleExit = () => {
+    if (!socketRef.current || !roomId) return
+    socketRef.current.emit('exit', {
+      roomId: parseInt(roomId, 10),
+    })
+  }
+
   const users = roomData?.userArray || []
   const roomSize = roomInfo?.size || 4
+  const isMyTurn = roomData?.isStart && roomData.order === myIndex
+  const myCards = myIndex >= 0 && roomData?.havingCards ? roomData.havingCards[myIndex] || [] : []
+  const canPass = roomData?.isStart && isMyTurn && roomData.order !== roomData.prevOrder
+
+  // Reorder users array so current user is first
+  const reorderUserArray = (arr: RoomUser[]) => {
+    if (hostFrom === 0) return arr
+    return [...arr.slice(hostFrom), ...arr.slice(0, hostFrom)]
+  }
+
+  const orderedUsers = reorderUserArray(users)
 
   return (
     <ProtectedRoute>
@@ -202,28 +330,71 @@ export default function GamePage() {
           <div className="max-w-7xl mx-auto">
             {/* Game Area */}
             <div className="flex flex-col items-center">
+              {/* Bonus Display */}
+              {roomData && (
+                <div className="mb-4 text-center">
+                  <h2 className="text-3xl font-bold text-white">
+                    BONUS: {(roomData.bonus || 0) * (roomData.double || 1)}
+                  </h2>
+                </div>
+              )}
+
               <div className="w-full max-w-6xl mb-4">
                 <GameStatus
                   currentPlayer={users[roomData?.order || 0]?.username || 'Waiting...'}
-                  lastPlay="Waiting for game to start"
-                  round={1}
+                  lastPlay={
+                    roomData?.isStart && roomData.droppingCards[roomData.prevOrder]?.length > 0
+                      ? `${roomData.droppingCards[roomData.prevOrder].length} cards`
+                      : 'Waiting for game to start'
+                  }
+                  round={roomData?.cycleCnt || 0}
                 />
               </div>
+
+              {/* Rest Cards Count */}
+              {roomData?.isStart && roomData.restCardCnt > 0 && (
+                <div className="mb-4 text-center">
+                  <p className="text-teal-300 text-lg">
+                    Remaining Cards: {roomData.restCardCnt}
+                  </p>
+                </div>
+              )}
+
               <GameTable
-                opponents={users.map((user, index) => ({
-                  name: user.username,
-                  cardCount: roomData?.havingCards[index]?.length || 0,
-                  position: index === 0 ? 'top' : index === 1 ? 'left' : 'right',
-                  isActive: roomData?.order === index,
-                }))}
+                centerCards={
+                  roomData?.isStart && roomData.droppingCards[roomData.prevOrder]
+                    ? roomData.droppingCards[roomData.prevOrder]
+                    : []
+                }
+                opponents={orderedUsers.map((user, index) => {
+                  const originalIndex = (index + hostFrom) % users.length
+                  return {
+                    name: user.username,
+                    cardCount: roomData?.havingCards[originalIndex]?.length || 0,
+                    position: index === 0 ? 'top' : index === 1 ? 'left' : 'right',
+                    isActive: roomData?.order === originalIndex,
+                  }
+                })}
               />
+
               {roomData?.isStart && (
                 <>
                   <div className="mt-8 w-full max-w-6xl">
-                    <PlayerHand />
+                    <PlayerHand
+                      cards={myCards}
+                      onCardSelectionChange={handleCardSelectionChange}
+                      isMyTurn={isMyTurn}
+                    />
                   </div>
                   <div className="mt-6">
-                    <GameControls />
+                    <GameControls
+                      onPlayCards={handlePlayCards}
+                      onPass={handlePass}
+                      onExit={handleExit}
+                      canPlay={canPlay}
+                      canPass={canPass || false}
+                      isMyTurn={isMyTurn || false}
+                    />
                   </div>
                 </>
               )}
