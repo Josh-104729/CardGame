@@ -6,6 +6,7 @@ import GameTable from '../components/GameTable'
 import PlayerHand from '../components/PlayerHand'
 import GameControls from '../components/GameControls'
 import GameStatus from '../components/GameStatus'
+import CardComponent from '../components/Card'
 import ProtectedRoute from '../components/ProtectedRoute'
 import { useAuth } from '../contexts/AuthContext'
 import { apiService } from '../services/api'
@@ -351,31 +352,52 @@ export default function GamePage() {
                 />
               </div>
 
-              {/* Rest Cards Count */}
-              {roomData?.isStart && roomData.restCardCnt > 0 && (
-                <div className="mb-4 text-center">
-                  <p className="text-teal-300 text-lg">
-                    Remaining Cards: {roomData.restCardCnt}
-                  </p>
-                </div>
-              )}
-
-              <GameTable
-                centerCards={
-                  roomData?.isStart && roomData.droppingCards[roomData.prevOrder]
-                    ? roomData.droppingCards[roomData.prevOrder]
-                    : []
-                }
-                opponents={orderedUsers.map((user, index) => {
-                  const originalIndex = (index + hostFrom) % users.length
-                  return {
-                    name: user.username,
-                    cardCount: roomData?.havingCards[originalIndex]?.length || 0,
-                    position: index === 0 ? 'top' : index === 1 ? 'left' : 'right',
-                    isActive: roomData?.order === originalIndex,
+              <div className="relative w-full max-w-6xl">
+                <GameTable
+                  centerCards={
+                    roomData?.isStart && roomData.droppingCards[roomData.prevOrder]
+                      ? roomData.droppingCards[roomData.prevOrder]
+                      : []
                   }
-                })}
-              />
+                  opponents={orderedUsers.map((user, index) => {
+                    const originalIndex = (index + hostFrom) % users.length
+                    return {
+                      name: user.username,
+                      cardCount: roomData?.havingCards[originalIndex]?.length || 0,
+                      position: index === 0 ? 'top' : index === 1 ? 'left' : 'right',
+                      isActive: roomData?.order === originalIndex,
+                    }
+                  })}
+                />
+
+                {/* Remaining Cards Display */}
+                {roomData?.isStart && roomData.restCardCnt > 0 && (
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center justify-center pointer-events-none">
+                    {/* Card Count Number */}
+                    <div className="mb-2">
+                      <span className="text-5xl font-bold text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.8)]">
+                        {roomData.restCardCnt}
+                      </span>
+                    </div>
+                    {/* Face-down Card Stack */}
+                    <div className="relative">
+                      {/* Show a stack of face-down cards */}
+                      {Array.from({ length: Math.min(roomData.restCardCnt, 5) }).map((_, index) => (
+                        <div
+                          key={index}
+                          className="absolute"
+                          style={{
+                            transform: `translate(${index * 3}px, ${index * 3}px)`,
+                            zIndex: 10 + index,
+                          }}
+                        >
+                          <CardComponent suit={0} rank={0} isFaceDown={true} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {roomData?.isStart && (
                 <>
