@@ -2,7 +2,6 @@ import { Entity, PrimaryGeneratedColumn, Column, Index } from "typeorm";
 
 @Entity("person_info")
 @Index("username", ["username"], { unique: true })
-@Index("idx_signtoken", ["signtoken"])
 export class PersonInfo {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -18,9 +17,6 @@ export class PersonInfo {
 
   @Column({ type: "int", default: 10000 })
   bounty!: number;
-
-  @Column({ type: "varchar", length: 500, default: "------" })
-  signtoken!: string;
 
   @Column({ type: "varchar", length: 255, nullable: true })
   birthdate?: string;

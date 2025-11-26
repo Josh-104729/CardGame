@@ -72,14 +72,6 @@ export class AuthController {
         return;
       }
 
-      if (result.signtoken !== "------") {
-        myResult.msg = T.USER_SIGNIN_DUPLICATE;
-        myResult.variant = "error";
-        myResult.token = "404";
-        res.send(myResult);
-        return;
-      }
-
       myResult.msg = T.USER_SIGNIN_SUCCESS;
       myResult.variant = "success";
       myResult.bounty = result.bounty;
@@ -104,7 +96,6 @@ export class AuthController {
 
           if (token) {
             myResult.token = "Bearer " + token;
-            await this.personInfoService.updateToken(UserName, myResult.token);
             res.send(myResult);
           }
         }
@@ -150,7 +141,6 @@ export class AuthController {
         username: UserName,
         password: hashedPassword,
         bounty: INITIAL_BOUNTY,
-        signtoken: "------",
         birthdate: BirthDay,
         gender: Gender,
         allowedbyadmin: AllowedByAdmin,
@@ -170,8 +160,8 @@ export class AuthController {
 
   async clearToken(req: Request<{}, ApiResponse, ClearTokenRequest>, res: Response<ApiResponse>): Promise<void> {
     try {
-      const { UserName } = req.body;
-      await this.personInfoService.clearToken(UserName);
+      // Tokens are now stateless JWTs, no database cleanup needed
+      // This endpoint is kept for backward compatibility with frontend
       res.send({ status: 1 });
     } catch (err) {
       console.error("Clear token error:", err);
@@ -182,14 +172,44 @@ export class AuthController {
   async validateToken(req: Request<{}, ApiResponse, ValidateTokenRequest>, res: Response<ApiResponse>): Promise<void> {
     try {
       const { token } = req.body;
-      const result = await this.personInfoService.findByToken(token);
+      
+      // Remove "Bearer " prefix if present
+      const cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+      
+      // Verify JWT token
+      jwt.verify(cleanToken, secretOrKey, async (err: Error | null, decoded: any) => {
+        if (err) {
+          res.send({ status: 0 });
+          return;
+        }
 
-      if (!result) {
-        res.send({ status: 0 });
-        return;
-      }
+        // Get user info from database using username from token
+        if (decoded && decoded.name) {
+          const user = await this.personInfoService.findByUsername(decoded.name);
+          if (!user) {
+            res.send({ status: 0 });
+            return;
+          }
 
-      res.send({ status: 1, user: result });
+          // Return user info without sensitive data
+          const userInfo = {
+            id: user.id,
+            username: user.username,
+            full_name: user.full_name,
+            bounty: user.bounty,
+            avatar_url: user.avatar_url,
+            email: user.email,
+            birthdate: user.birthdate,
+            gender: user.gender,
+            allowedbyadmin: user.allowedbyadmin,
+            create_at: user.create_at,
+          };
+
+          res.send({ status: 1, user: userInfo });
+        } else {
+          res.send({ status: 0 });
+        }
+      });
     } catch (err) {
       console.error("Validate token error:", err);
       res.send({ status: 0 });

@@ -15,12 +15,6 @@ export class PersonInfoService {
     });
   }
 
-  async findByToken(token: string): Promise<PersonInfo | null> {
-    return await this.repository.findOne({
-      where: { signtoken: token }
-    });
-  }
-
   async create(userData: Partial<PersonInfo>): Promise<PersonInfo> {
     const user = this.repository.create(userData);
     return await this.repository.save(user);
@@ -32,14 +26,6 @@ export class PersonInfoService {
 
   async updateBounty(username: string, bounty: number): Promise<void> {
     await this.repository.update({ username }, { bounty });
-  }
-
-  async updateToken(username: string, token: string): Promise<void> {
-    await this.repository.update({ username }, { signtoken: token });
-  }
-
-  async clearToken(username: string): Promise<void> {
-    await this.repository.update({ username }, { signtoken: "------" });
   }
 }
 
