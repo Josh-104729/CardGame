@@ -361,11 +361,17 @@ export default function GamePage() {
                   }
                   opponents={orderedUsers.map((user, index) => {
                     const originalIndex = (index + hostFrom) % users.length
+                    const isActive = roomData?.order === originalIndex
+                    // Calculate progress: counterCnt goes from 0 to 10 (10 seconds timer)
+                    const progress = isActive && roomData?.counterCnt !== undefined 
+                      ? Math.min(roomData.counterCnt / 10, 1) 
+                      : 0
                     return {
                       name: user.username,
                       cardCount: roomData?.havingCards[originalIndex]?.length || 0,
                       position: index === 0 ? 'top' : index === 1 ? 'left' : 'right',
-                      isActive: roomData?.order === originalIndex,
+                      isActive: isActive,
+                      progress: progress,
                     }
                   })}
                 />

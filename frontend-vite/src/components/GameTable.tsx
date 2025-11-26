@@ -4,7 +4,7 @@ import type { Card as GameCard } from '../utils/cardValidation'
 
 interface GameTableProps {
   centerCards?: GameCard[]
-  opponents?: Array<{ name: string; cardCount: number; position: 'top' | 'left' | 'right'; isActive?: boolean }>
+  opponents?: Array<{ name: string; cardCount: number; position: 'top' | 'left' | 'right'; isActive?: boolean; progress?: number }>
 }
 
 export default function GameTable({ centerCards = [], opponents = [] }: GameTableProps) {
@@ -18,6 +18,7 @@ export default function GameTable({ centerCards = [], opponents = [] }: GameTabl
           cardCount={opponent.cardCount}
           position={opponent.position}
           isActive={opponent.isActive}
+          progress={opponent.progress}
         />
       ))}
 
