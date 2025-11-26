@@ -9,7 +9,8 @@ interface RegisterModalProps {
 
 export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: RegisterModalProps) {
   const [formData, setFormData] = useState({
-    Name: '',
+    FirstName: '',
+    LastName: '',
     UserName: '',
     Password: '',
     ConfirmPassword: '',
@@ -57,7 +58,8 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
       if (result.success) {
         onClose();
         setFormData({
-          Name: '',
+          FirstName: '',
+          LastName: '',
           UserName: '',
           Password: '',
           ConfirmPassword: '',
@@ -95,20 +97,38 @@ export default function RegisterModal({ isOpen, onClose, onSwitchToLogin }: Regi
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="Name" className="block text-sm font-medium text-teal-200 mb-2">
-                Full Name
-              </label>
-              <input
-                id="Name"
-                name="Name"
-                type="text"
-                value={formData.Name}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 bg-teal-800 border border-teal-600 rounded-lg text-white placeholder-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                placeholder="Enter your full name"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="FirstName" className="block text-sm font-medium text-teal-200 mb-2">
+                  First Name
+                </label>
+                <input
+                  id="FirstName"
+                  name="FirstName"
+                  type="text"
+                  value={formData.FirstName}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-2 bg-teal-800 border border-teal-600 rounded-lg text-white placeholder-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="Enter your first name"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="LastName" className="block text-sm font-medium text-teal-200 mb-2">
+                  Last Name
+                </label>
+                <input
+                  id="LastName"
+                  name="LastName"
+                  type="text"
+                  value={formData.LastName}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-2 bg-teal-800 border border-teal-600 rounded-lg text-white placeholder-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="Enter your last name"
+                />
+              </div>
             </div>
 
             <div>

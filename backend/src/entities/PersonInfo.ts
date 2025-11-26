@@ -7,7 +7,10 @@ export class PersonInfo {
   id!: number;
 
   @Column({ type: "varchar", length: 255, nullable: true })
-  full_name?: string;
+  first_name?: string;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  last_name?: string;
 
   @Column({ type: "varchar", length: 255, unique: true })
   username!: string;

@@ -5,7 +5,8 @@ export interface LoginRequest {
 }
 
 export interface RegisterRequest {
-  Name: string;
+  FirstName: string;
+  LastName: string;
   UserName: string;
   Password: string;
   BirthDay: string;
@@ -47,7 +48,8 @@ export interface ValidateTokenResponse extends ApiResponse {
   status: number;
   user?: {
     username: string;
-    full_name: string;
+    first_name?: string;
+    last_name?: string;
     bounty: number;
     avatar_url: string;
     email: string;
@@ -58,7 +60,8 @@ export interface ValidateTokenResponse extends ApiResponse {
 // User Type
 export interface User {
   username: string;
-  full_name: string;
+  first_name?: string;
+  last_name?: string;
   bounty: number;
   avatar: string;
   email: string;

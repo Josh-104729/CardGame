@@ -109,7 +109,8 @@ export class AuthController {
   async register(req: Request<{}, RegisterResponse, RegisterRequest>, res: Response<RegisterResponse>): Promise<void> {
     try {
       const {
-        Name,
+        FirstName,
+        LastName,
         UserName,
         Password,
         BirthDay,
@@ -137,7 +138,8 @@ export class AuthController {
       // Hash password before storing in database
       const hashedPassword = await hashPassword(Password);
       await this.personInfoService.create({
-        full_name: Name,
+        first_name: FirstName,
+        last_name: LastName,
         username: UserName,
         password: hashedPassword,
         bounty: INITIAL_BOUNTY,
@@ -195,7 +197,8 @@ export class AuthController {
           const userInfo = {
             id: user.id,
             username: user.username,
-            full_name: user.full_name,
+            first_name: user.first_name,
+            last_name: user.last_name,
             bounty: user.bounty,
             avatar_url: user.avatar_url,
             email: user.email,
