@@ -358,20 +358,40 @@ export default function GamePage() {
     return { x: xPercent, y: yPercent, usePercent: true }
   }
 
+  // Find current user's index in the original users array
+  const currentUserIndex = myIndex >= 0 ? myIndex : users.findIndex((u) => u.username === user?.username)
+  
+  // Rotate players array so current user is at index 0 (center/bottom position)
+  // This ensures current user is always displayed at the center
+  const rotatePlayersArray = <T,>(arr: T[], startIndex: number): T[] => {
+    if (startIndex <= 0 || startIndex >= arr.length) return arr
+    return [...arr.slice(startIndex), ...arr.slice(0, startIndex)]
+  }
+  
+  const rotatedUsers = rotatePlayersArray(users, currentUserIndex >= 0 ? currentUserIndex : 0)
+  
+  // Map rotated users back to their original indices for game logic
+  const getOriginalIndex = (rotatedIndex: number): number => {
+    if (currentUserIndex < 0) return rotatedIndex
+    return (currentUserIndex + rotatedIndex) % users.length
+  }
+  
   // Only show empty slots if game hasn't started yet
   const emptySlotsCount = roomData?.isStart ? 0 : Math.max(0, roomSize - users.length)
   
   // Create array of all player slots (real players + empty placeholders)
-  // Include ALL users (including current user) in their correct order
+  // Rotated so current user is at display index 0 (center/bottom)
   const allPlayerSlots = [
-    ...users.map((playerUser, userIndex) => ({
+    ...rotatedUsers.map((playerUser, rotatedIndex) => ({
       user: playerUser,
-      userIndex: userIndex,
+      displayIndex: rotatedIndex, // Position in display (0 = center/bottom)
+      originalIndex: getOriginalIndex(rotatedIndex), // Original index for game logic
       isEmpty: false,
     })),
     ...Array.from({ length: emptySlotsCount }, (_, i) => ({
       user: null,
-      userIndex: users.length + i,
+      displayIndex: rotatedUsers.length + i,
+      originalIndex: users.length + i, // Empty slots use original indices beyond current users
       isEmpty: true,
     })),
   ]
@@ -414,7 +434,8 @@ export default function GamePage() {
                       : []
                   }
                   opponents={allPlayerSlots.map((slot) => {
-                    const calculatedPosition = calculateEllipsePosition(slot.userIndex, roomSize)
+                    // Use displayIndex for position calculation (current user at 0 = center/bottom)
+                    const calculatedPosition = calculateEllipsePosition(slot.displayIndex, roomSize)
                     
                     if (slot.isEmpty) {
                       // Empty placeholder slot
@@ -432,8 +453,8 @@ export default function GamePage() {
                     
                     // Real player slot
                     const playerUser = slot.user!
-                    const userIndex = slot.userIndex
-                    const isActive = roomData?.order === userIndex
+                    const originalIndex = slot.originalIndex // Use original index for game logic
+                    const isActive = roomData?.order === originalIndex
                     // Calculate progress: counterCnt goes from 0 to 10 (10 seconds timer)
                     const progress = isActive && roomData?.counterCnt !== undefined 
                       ? Math.min(roomData.counterCnt / 10, 1) 
@@ -442,7 +463,7 @@ export default function GamePage() {
                     if (calculatedPosition === 'bottom') {
                       return {
                         name: playerUser.username,
-                        cardCount: roomData?.havingCards[userIndex]?.length || 0,
+                        cardCount: roomData?.havingCards[originalIndex]?.length || 0,
                         position: 'bottom' as const,
                         isActive: isActive,
                         progress: progress,
@@ -452,7 +473,7 @@ export default function GamePage() {
                     
                     return {
                       name: playerUser.username,
-                      cardCount: roomData?.havingCards[userIndex]?.length || 0,
+                      cardCount: roomData?.havingCards[originalIndex]?.length || 0,
                       customPosition: calculatedPosition,
                       isActive: isActive,
                       progress: progress,
