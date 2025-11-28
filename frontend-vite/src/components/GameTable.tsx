@@ -1,15 +1,16 @@
+import { forwardRef } from 'react'
 import Card from './Card'
 import OpponentPlayer from './OpponentPlayer'
 import type { Card as GameCard } from '../utils/cardValidation'
 
 interface GameTableProps {
   centerCards?: GameCard[]
-  opponents?: Array<{ name: string; cardCount: number; position: 'top' | 'left' | 'right'; isActive?: boolean; progress?: number }>
+  opponents?: Array<{ name?: string; cardCount?: number; position?: 'top' | 'left' | 'right' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; isActive?: boolean; progress?: number; isEmpty?: boolean; customPosition?: { x: number; y: number; usePercent?: boolean } }>
 }
 
-export default function GameTable({ centerCards = [], opponents = [] }: GameTableProps) {
+const GameTable = forwardRef<HTMLDivElement, GameTableProps>(({ centerCards = [], opponents = [] }, ref) => {
   return (
-    <div className="relative w-full max-w-5xl h-96 bg-teal-800/30 rounded-2xl border-4 border-teal-600/50 shadow-2xl flex items-center justify-center">
+    <div className="relative w-full max-w-6xl h-96 bg-teal-800/30 rounded-2xl border-4 border-teal-600/50 shadow-2xl flex items-center justify-center">
       {/* Opponent Players */}
       {opponents.map((opponent, index) => (
         <OpponentPlayer
@@ -19,11 +20,13 @@ export default function GameTable({ centerCards = [], opponents = [] }: GameTabl
           position={opponent.position}
           isActive={opponent.isActive}
           progress={opponent.progress}
+          isEmpty={opponent.isEmpty}
+          customPosition={opponent.customPosition}
         />
       ))}
 
       {/* Center Cards */}
-      <div className="z-10">
+      <div ref={ref} className="z-10">
         {centerCards && centerCards.length > 0 ? (
           <div className="flex gap-4 items-center justify-center">
             {centerCards.map((card, index) => {
@@ -33,11 +36,13 @@ export default function GameTable({ centerCards = [], opponents = [] }: GameTabl
                 return (
                   <div
                     key={index}
-                    className="w-20 h-28 bg-gradient-to-br from-purple-900 to-purple-700 rounded-lg border-2 border-purple-500 flex items-center justify-center"
+                    className="w-20 h-28 rounded-lg border-2 border-transparent card-shadow overflow-hidden"
                   >
-                    <span className="text-white text-xl">
-                      {card.type === 4 ? '소' : '따'}
-                    </span>
+                    <img
+                      src={`/imgs/cards/${card.type}-0.png`}
+                      alt={card.type === 4 ? '소' : '따'}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 )
               }
@@ -52,5 +57,9 @@ export default function GameTable({ centerCards = [], opponents = [] }: GameTabl
       </div>
     </div>
   )
-}
+})
+
+GameTable.displayName = 'GameTable'
+
+export default GameTable
 

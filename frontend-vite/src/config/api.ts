@@ -1,6 +1,6 @@
 // API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8050';
-export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:8050';
+export const API_BASE_URL = 'http://172.20.1.144:8050';
+export const SOCKET_URL = 'http://172.20.1.144:8050';
 
 export const API_ENDPOINTS = {
   LOGIN: '/log_in',

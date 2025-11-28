@@ -11,7 +11,13 @@ export const createApp = (): Application => {
   // Middleware
   app.use(express.static(path.join(__dirname, "../public")));
   app.use(fileUpload());
-  app.use(cors());
+  // CORS configuration to allow access from all IPs
+  app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    credentials: false
+  }));
   app.use(bodyParser.urlencoded({ extended: false }));
   app.use(bodyParser.json());
 

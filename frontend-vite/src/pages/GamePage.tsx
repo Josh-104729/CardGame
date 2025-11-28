@@ -56,7 +56,8 @@ export default function GamePage() {
   const [selectedCards, setSelectedCards] = useState<Card[]>([])
   const [canPlay, setCanPlay] = useState(false)
   const [myIndex, setMyIndex] = useState(-1)
-  const [hostFrom, setHostFrom] = useState(0)
+  const [animateCards, setAnimateCards] = useState(false)
+  const centerCardsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const initializeRoom = async () => {
@@ -111,11 +112,6 @@ export default function GamePage() {
               (u) => u.username === user.username
             )
             setMyIndex(userIndex)
-            
-            // Set host from index (for reordering)
-            if (userIndex > -1) {
-              setHostFrom(userIndex)
-            }
             
             // Clear selection when counter resets
             if (param.roomData.counterCnt === 0) {
@@ -266,32 +262,42 @@ export default function GamePage() {
       return
     }
 
-    let double = roomData?.double || 1
-    let effectOpen = false
-    let effectkind = ''
+    // Trigger animation
+    setAnimateCards(true)
 
-    // Check for special effects
-    if (validation.status === 3) {
-      // Madae
-      double *= 2
-      effectOpen = true
-      effectkind = 'madae'
-    } else if (validation.status === 4) {
-      // Taso
-      double *= 2
-      effectOpen = true
-      effectkind = 'tawang'
-    }
+    // Wait for animation to complete before emitting
+    setTimeout(() => {
+      let double = roomData?.double || 1
+      let effectOpen = false
+      let effectkind = ''
 
-    socketRef.current.emit('shutcards', {
-      choosedCard: selectedCards,
-      roomId: parseInt(roomId, 10),
-      double: double,
-      effectOpen: effectOpen,
-      effectkind: effectkind,
-    })
+      // Check for special effects
+      if (validation.status === 3) {
+        // Madae
+        double *= 2
+        effectOpen = true
+        effectkind = 'madae'
+      } else if (validation.status === 4) {
+        // Taso
+        double *= 2
+        effectOpen = true
+        effectkind = 'tawang'
+      }
 
-    setSelectedCards([])
+      socketRef.current?.emit('shutcards', {
+        choosedCard: selectedCards,
+        roomId: parseInt(roomId, 10),
+        double: double,
+        effectOpen: effectOpen,
+        effectkind: effectkind,
+      })
+
+      setSelectedCards([])
+    }, 700) // Wait for animation to complete (600ms + buffer)
+  }
+
+  const handleAnimationComplete = () => {
+    setAnimateCards(false)
   }
 
   const handlePass = () => {
@@ -315,13 +321,60 @@ export default function GamePage() {
   const myCards = myIndex >= 0 && roomData?.havingCards ? roomData.havingCards[myIndex] || [] : []
   const canPass = roomData?.isStart && isMyTurn && roomData.order !== roomData.prevOrder
 
-  // Reorder users array so current user is first
-  const reorderUserArray = (arr: RoomUser[]) => {
-    if (hostFrom === 0) return arr
-    return [...arr.slice(hostFrom), ...arr.slice(0, hostFrom)]
+  // Calculate position using half-ellipse math
+  // Uses percentage-based positioning for responsiveness
+  const calculateEllipsePosition = (userIndex: number, totalSize: number): { x: number; y: number; usePercent: boolean } | 'bottom' => {
+    // Current user (index 0) always at bottom center
+    if (userIndex === 0) {
+      return 'bottom'
+    }
+
+    // Use percentage-based calculations (0-100) relative to table container
+    const centerX = 50 // 50% of width (center)
+    const centerY = 50 // 50% of height (center)
+    
+    // Semi-major axis (horizontal): percentage of width available for ellipse
+    // Leave ~12% padding on each side for player radius, so a = 38% of width
+    const a = 38
+    
+    // Semi-minor axis (vertical): percentage of height available for ellipse  
+    // Leave ~18% padding from top for player radius, so b = 32% of height
+    const b = 32
+    
+    // Number of opponents (excluding current user at index 0)
+    const opponentCount = totalSize - 1
+    
+    // Calculate angle for this opponent
+    // Distribute evenly along half-ellipse from left (π) to right (0)
+    // We go from π to 0 so leftmost player is at π, rightmost at 0
+    const angle = Math.PI * (1 - (userIndex - 1) / (opponentCount - 1 || 1))
+    
+    // Ellipse parametric equations for half-ellipse (top half)
+    // x = centerX + a * cos(θ) (as percentage)
+    // y = centerY - b * sin(θ) (as percentage, negative because y increases downward)
+    const xPercent = centerX + a * Math.cos(angle)
+    const yPercent = centerY - b * Math.sin(angle)
+    
+    return { x: xPercent, y: yPercent, usePercent: true }
   }
 
-  const orderedUsers = reorderUserArray(users)
+  // Only show empty slots if game hasn't started yet
+  const emptySlotsCount = roomData?.isStart ? 0 : Math.max(0, roomSize - users.length)
+  
+  // Create array of all player slots (real players + empty placeholders)
+  // Include ALL users (including current user) in their correct order
+  const allPlayerSlots = [
+    ...users.map((playerUser, userIndex) => ({
+      user: playerUser,
+      userIndex: userIndex,
+      isEmpty: false,
+    })),
+    ...Array.from({ length: emptySlotsCount }, (_, i) => ({
+      user: null,
+      userIndex: users.length + i,
+      isEmpty: true,
+    })),
+  ]
 
   return (
     <ProtectedRoute>
@@ -354,41 +407,67 @@ export default function GamePage() {
 
               <div className="relative w-full max-w-6xl">
                 <GameTable
+                  ref={centerCardsRef}
                   centerCards={
                     roomData?.isStart && roomData.droppingCards[roomData.prevOrder]
                       ? roomData.droppingCards[roomData.prevOrder]
                       : []
                   }
-                  opponents={orderedUsers.map((user, index) => {
-                    const originalIndex = (index + hostFrom) % users.length
-                    const isActive = roomData?.order === originalIndex
+                  opponents={allPlayerSlots.map((slot) => {
+                    const calculatedPosition = calculateEllipsePosition(slot.userIndex, roomSize)
+                    
+                    if (slot.isEmpty) {
+                      // Empty placeholder slot
+                      if (calculatedPosition === 'bottom') {
+                        return {
+                          isEmpty: true,
+                          position: 'bottom' as const,
+                        }
+                      }
+                      return {
+                        isEmpty: true,
+                        customPosition: calculatedPosition,
+                      }
+                    }
+                    
+                    // Real player slot
+                    const playerUser = slot.user!
+                    const userIndex = slot.userIndex
+                    const isActive = roomData?.order === userIndex
                     // Calculate progress: counterCnt goes from 0 to 10 (10 seconds timer)
                     const progress = isActive && roomData?.counterCnt !== undefined 
                       ? Math.min(roomData.counterCnt / 10, 1) 
                       : 0
+                    
+                    if (calculatedPosition === 'bottom') {
+                      return {
+                        name: playerUser.username,
+                        cardCount: roomData?.havingCards[userIndex]?.length || 0,
+                        position: 'bottom' as const,
+                        isActive: isActive,
+                        progress: progress,
+                        isEmpty: false,
+                      }
+                    }
+                    
                     return {
-                      name: user.username,
-                      cardCount: roomData?.havingCards[originalIndex]?.length || 0,
-                      position: index === 0 ? 'top' : index === 1 ? 'left' : 'right',
+                      name: playerUser.username,
+                      cardCount: roomData?.havingCards[userIndex]?.length || 0,
+                      customPosition: calculatedPosition,
                       isActive: isActive,
                       progress: progress,
+                      isEmpty: false,
                     }
                   })}
                 />
 
                 {/* Remaining Cards Display */}
                 {roomData?.isStart && roomData.restCardCnt > 0 && (
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center justify-center pointer-events-none">
-                    {/* Card Count Number */}
-                    <div className="mb-2">
-                      <span className="text-5xl font-bold text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.8)]">
-                        {roomData.restCardCnt}
-                      </span>
-                    </div>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center pointer-events-none">
                     {/* Face-down Card Stack */}
                     <div className="relative">
                       {/* Show a stack of face-down cards */}
-                      {Array.from({ length: Math.min(roomData.restCardCnt, 5) }).map((_, index) => (
+                      {Array.from({ length: Math.min(roomData.restCardCnt, 1) }).map((_, index) => (
                         <div
                           key={index}
                           className="absolute"
@@ -400,6 +479,12 @@ export default function GamePage() {
                           <CardComponent suit={0} rank={0} isFaceDown={true} />
                         </div>
                       ))}
+                      {/* Card Count Number - Centered on the cards */}
+                      <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20 }}>
+                        <span className="text-4xl font-bold text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.9)] drop-shadow-[0_0_4px_rgba(0,0,0,0.9)]">
+                          {roomData.restCardCnt}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -412,6 +497,9 @@ export default function GamePage() {
                       cards={myCards}
                       onCardSelectionChange={handleCardSelectionChange}
                       isMyTurn={isMyTurn}
+                      animateToCenter={animateCards}
+                      onAnimationComplete={handleAnimationComplete}
+                      centerTargetRef={centerCardsRef}
                     />
                   </div>
                   <div className="mt-6">

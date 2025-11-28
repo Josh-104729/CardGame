@@ -18,19 +18,24 @@ const app = createApp();
 
 // HTTP Server
 const PORT = 8050;
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   const address = server.address();
   if (address && typeof address === "object") {
     console.log(`Luckyman app listening at http://${address.address}:${address.port}`);
   }
 });
 
-// Socket.IO Server
-const SOCKET_PORT = 5050;
-const socketServer = io(SOCKET_PORT, {
+// Socket.IO Server - Attached to HTTP server to share the same port
+const socketServer = io(server, {
   cors: {
-    origin: "*",
+    origin: (origin, callback) => {
+      // Allow all origins - return the origin string when credentials are used
+      // This allows any IP address to connect
+      callback(null, origin || true);
+    },
     methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   },
 });
 

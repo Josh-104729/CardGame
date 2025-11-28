@@ -1,23 +1,57 @@
 interface OpponentPlayerProps {
-  name: string
-  cardCount: number
-  position: 'top' | 'left' | 'right'
+  name?: string
+  cardCount?: number
+  position?: 'top' | 'left' | 'right' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
   isActive?: boolean
   progress?: number // Progress from 0 to 1 (0 = start, 1 = end of cooldown)
+  isEmpty?: boolean // If true, shows an empty placeholder
+  customPosition?: { x: number; y: number; usePercent?: boolean } // Custom calculated position (pixels or percent if usePercent=true)
 }
 
-export default function OpponentPlayer({ name, cardCount, position, isActive = false, progress = 0 }: OpponentPlayerProps) {
+export default function OpponentPlayer({ name, cardCount = 0, position, isActive = false, progress = 0, isEmpty = false, customPosition }: OpponentPlayerProps) {
   const positionClasses = {
     top: 'top-4 left-1/2 -translate-x-1/2',
     left: 'left-4 top-1/2 -translate-y-1/2',
     right: 'right-4 top-1/2 -translate-y-1/2',
+    bottom: 'bottom-4 left-1/2 -translate-x-1/2',
+    'top-left': 'top-4 left-4',
+    'top-right': 'top-4 right-4',
+    'bottom-left': 'bottom-4 left-4',
+    'bottom-right': 'bottom-4 right-4',
   }
 
   // Calculate progress percentage (0 to 100)
   const progressPercent = Math.min(Math.max(progress * 100, 0), 100)
 
+  // Use custom position if provided, otherwise use position classes
+  const positionStyle = customPosition 
+    ? { 
+        left: customPosition.usePercent ? `${customPosition.x}%` : `${customPosition.x}px`, 
+        top: customPosition.usePercent ? `${customPosition.y}%` : `${customPosition.y}px`,
+        transform: 'translate(-50%, -50%)' // Center the player circle on the calculated point
+      }
+    : undefined
+
+  const positionClassName = customPosition ? '' : (position ? positionClasses[position] : '')
+
+  if (isEmpty) {
+    // Empty placeholder
+    return (
+      <div className={`absolute ${positionClassName}`} style={positionStyle}>
+        <div className="w-32 h-32 bg-teal-800/40 backdrop-blur-sm rounded-full shadow-lg border-2 border-dashed border-teal-600/50 relative flex items-center justify-center opacity-60">
+          <div className="text-center relative z-10 flex flex-col items-center justify-center px-2">
+            <div className="w-14 h-14 bg-teal-700/50 rounded-full flex items-center justify-center mb-1.5 border-2 border-dashed border-teal-500/50">
+              <span className="text-teal-400/50 font-semibold text-base">?</span>
+            </div>
+            <div className="text-sm font-semibold text-teal-300/50 truncate max-w-[110px]">Waiting...</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className={`absolute ${positionClasses[position]}`}>
+    <div className={`absolute ${positionClassName}`} style={positionStyle}>
       <div className={`w-32 h-32 bg-teal-800/90 backdrop-blur-sm rounded-full shadow-lg border-2 border-teal-600 relative flex items-center justify-center ${isActive ? 'cooldown-effect' : ''}`}>
         {/* Progress bar overlay for cooldown effect */}
         {isActive && (
@@ -54,9 +88,9 @@ export default function OpponentPlayer({ name, cardCount, position, isActive = f
         )}
         <div className="text-center relative z-10 flex flex-col items-center justify-center px-2">
           <div className="w-14 h-14 bg-teal-700 rounded-full flex items-center justify-center mb-1.5">
-            <span className="text-white font-semibold text-base">{name[0]}</span>
+            <span className="text-white font-semibold text-base">{name?.[0] || '?'}</span>
           </div>
-          <div className="text-sm font-semibold text-white truncate max-w-[110px]">{name}</div>
+          <div className="text-sm font-semibold text-white truncate max-w-[110px]">{name || 'Unknown'}</div>
           <div className="text-xs text-teal-200 mt-0.5">{cardCount} cards</div>
           {isActive && (
             <div className="text-xs text-yellow-400 mt-0.5 font-bold">Active</div>

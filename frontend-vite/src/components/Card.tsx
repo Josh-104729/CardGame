@@ -1,42 +1,75 @@
 interface CardProps {
   suit: number // 0: spades, 1: hearts, 2: diamonds, 3: clubs
-  rank: number // 1-13 (A, 2-10, J, Q, K)
+  rank: number // 1-13 (internal rank: 1=3, 2=4, ..., 8=10, 9=J, 10=Q, 11=K, 12=A, 13=2)
   isSelected?: boolean
   isFaceDown?: boolean
 }
 
-const suitSymbols = ['♠', '♥', '♦', '♣']
-const suitColors = ['text-black', 'text-red-600', 'text-red-600', 'text-black']
-const rankLabels: { [key: number]: string } = {
-  1: 'A',
-  11: 'J',
-  12: 'Q',
-  13: 'K',
+// Map internal rank to real card rank
+// Internal: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
+// Real:     3, 4, 5, 6, 7, 8, 9, 10, J(11), Q(12), K(13), A(1), 2
+const mapInternalRankToRealRank = (internalRank: number): number => {
+  if (internalRank >= 1 && internalRank <= 8) {
+    // Internal 1-8 maps to Real 3-10
+    return internalRank + 2
+  } else if (internalRank === 9) {
+    // Internal 9 maps to Real J (11)
+    return 11
+  } else if (internalRank === 10) {
+    // Internal 10 maps to Real Q (12)
+    return 12
+  } else if (internalRank === 11) {
+    // Internal 11 maps to Real K (13)
+    return 13
+  } else if (internalRank === 12) {
+    // Internal 12 maps to Real A (1)
+    return 1
+  } else if (internalRank === 13) {
+    // Internal 13 maps to Real 2
+    return 2
+  }
+  return internalRank // Fallback
 }
 
 export default function Card({ suit, rank, isSelected = false, isFaceDown = false }: CardProps) {
-  if (isFaceDown) {
-    return (
-      <div className="w-20 h-28 bg-gradient-to-br from-blue-900 to-blue-700 rounded-lg border-2 border-blue-600 card-shadow flex items-center justify-center">
-        <div className="text-blue-300 text-2xl font-bold">🂠</div>
-      </div>
-    )
+  // Get card image path
+  const getCardImagePath = () => {
+    if (isFaceDown) {
+      return '/imgs/cards/coveredCardBg.png'
+    }
+    const realRank = mapInternalRankToRealRank(rank)
+    return `/imgs/cards/${suit}-${realRank}.png`
   }
-
-  const suitSymbol = suitSymbols[suit]
-  const suitColor = suitColors[suit]
-  const rankLabel = rankLabels[rank] || rank.toString()
 
   return (
     <div
-      className={`w-20 h-28 bg-white rounded-lg border-2 ${
-        isSelected ? 'border-yellow-400 border-4' : 'border-gray-800'
-      } card-shadow card-hover flex flex-col items-center justify-center p-2 ${
+      className={`w-20 h-28 rounded-lg border-2 ${
+        isSelected ? 'border-yellow-400 border-4' : 'border-transparent'
+      } ${isFaceDown ? '' : 'card-shadow'} card-hover overflow-hidden ${
         isSelected ? 'ring-4 ring-yellow-400/50' : ''
       }`}
     >
-      <div className={`text-lg font-bold ${suitColor}`}>{rankLabel}</div>
-      <div className={`text-2xl ${suitColor}`}>{suitSymbol}</div>
+      <img
+        src={getCardImagePath()}
+        alt={`Card ${suit}-${rank}`}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          // Fallback if image doesn't exist
+          const target = e.target as HTMLImageElement
+          target.style.display = 'none'
+          const parent = target.parentElement
+          if (parent) {
+            const realRank = mapInternalRankToRealRank(rank)
+            const rankLabel = realRank === 1 ? 'A' : realRank === 11 ? 'J' : realRank === 12 ? 'Q' : realRank === 13 ? 'K' : realRank.toString()
+            parent.innerHTML = `
+              <div class="w-full h-full bg-white rounded-lg flex flex-col items-center justify-center p-2">
+                <div class="text-lg font-bold">${rankLabel}</div>
+                <div class="text-2xl">${['♠', '♥', '♦', '♣'][suit]}</div>
+              </div>
+            `
+          }
+        }}
+      />
     </div>
   )
 }
