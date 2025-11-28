@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import Card from './Card'
 import type { Card as GameCard } from '../utils/cardValidation'
 
@@ -6,14 +6,45 @@ interface PlayerHandProps {
   cards: GameCard[]
   onCardSelectionChange?: (selectedCards: GameCard[]) => void
   isMyTurn?: boolean
+  excludeCards?: GameCard[] // Cards to exclude from display (for animation)
 }
 
-export default function PlayerHand({ 
+export interface PlayerHandRef {
+  getSelectedCardPositions: (selectedIndices: number[]) => Array<{ x: number; y: number }>
+}
+
+const PlayerHand = forwardRef<PlayerHandRef, PlayerHandProps>(({ 
   cards, 
   onCardSelectionChange, 
-  isMyTurn = false
-}: PlayerHandProps) {
+  isMyTurn = false,
+  excludeCards = []
+}, ref) => {
   const [selectedIndices, setSelectedIndices] = useState<number[]>([])
+  const cardRefs = useRef<Array<HTMLDivElement | null>>([])
+
+  useImperativeHandle(ref, () => ({
+    getSelectedCardPositions: (indices: number[]) => {
+      // Use requestAnimationFrame to ensure DOM is ready
+      return indices.map((index) => {
+        const cardElement = cardRefs.current[index]
+        if (cardElement) {
+          // Force a reflow to ensure element is positioned
+          cardElement.offsetHeight
+          const rect = cardElement.getBoundingClientRect()
+          // Account for scroll position
+          return {
+            x: rect.left + rect.width / 2 + window.scrollX,
+            y: rect.top + rect.height / 2 + window.scrollY,
+          }
+        }
+        // Return center of viewport as fallback
+        return { 
+          x: window.innerWidth / 2 + window.scrollX, 
+          y: window.innerHeight / 2 + window.scrollY 
+        }
+      })
+    },
+  }))
 
   useEffect(() => {
     // Clear selection when it's not your turn
@@ -25,10 +56,22 @@ export default function PlayerHand({
   useEffect(() => {
     // Notify parent of selection changes
     if (onCardSelectionChange) {
-      const selectedCards = selectedIndices.map((idx) => cards[idx]).filter(Boolean)
+      const selectedCards: GameCard[] = selectedIndices
+        .map((idx) => {
+          // Ensure index is valid
+          if (idx < 0 || idx >= cards.length) return null
+          return cards[idx]
+        })
+        .filter((card): card is GameCard => card !== null)
+        .filter((card) => {
+          // Filter out excluded cards
+          return !excludeCards.some(
+            excluded => excluded.type === card.type && excluded.number === card.number
+          )
+        })
       onCardSelectionChange(selectedCards)
     }
-  }, [selectedIndices, cards, onCardSelectionChange])
+  }, [selectedIndices, cards, onCardSelectionChange, excludeCards])
 
   const toggleCardSelection = (index: number) => {
     if (!isMyTurn) return
@@ -50,6 +93,15 @@ export default function PlayerHand({
     return { suit: card.type, rank: card.number }
   }
 
+  // Filter out excluded cards - ensure proper comparison
+  const displayCards = cards.filter((card) => {
+    if (!card) return false
+    const isExcluded = excludeCards.some(excluded => 
+      excluded && excluded.type === card.type && excluded.number === card.number
+    )
+    return !isExcluded
+  })
+
   if (!cards || cards.length === 0) {
     return (
       <div className="w-full text-center py-8">
@@ -61,18 +113,38 @@ export default function PlayerHand({
   return (
     <div className="w-full">
       <div className="flex justify-center items-end relative min-h-[120px]">
-        {cards.map((card, index) => {
+        {displayCards.map((card, displayIndex) => {
+          // Find original index in cards array
+          let originalIndex = 0
+          let skipped = 0
+          for (let i = 0; i < cards.length; i++) {
+            if (excludeCards.some(excluded => 
+              excluded.type === cards[i].type && excluded.number === cards[i].number
+            )) {
+              skipped++
+              continue
+            }
+            if (i - skipped === displayIndex) {
+              originalIndex = i
+              break
+            }
+          }
+
           const displayCard = convertCard(card)
-          const isSelected = selectedIndices.includes(index)
-          // Overlap cards: each card overlaps the previous by 120px
-          // First card has no negative margin
+          const isSelected = selectedIndices.includes(originalIndex) && 
+            !excludeCards.some(excluded => 
+              excluded.type === card.type && excluded.number === card.number
+            )
 
           return (
             <div
-              key={index}
-              onClick={() => toggleCardSelection(index)}
+              key={originalIndex}
+              ref={(el) => {
+                cardRefs.current[originalIndex] = el
+              }}
+              onClick={() => toggleCardSelection(originalIndex)}
               className={`relative ${
-                index > 0 ? '-ml-[30px]' : ''
+                displayIndex > 0 ? '-ml-[30px]' : ''
               } ${
                 isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed'
               } ${
@@ -83,7 +155,7 @@ export default function PlayerHand({
                   : ''
               }`}
               style={{
-                zIndex: isSelected ? 50 : index + 10,
+                zIndex: isSelected ? 50 : displayIndex + 10,
               }}
             >
               {displayCard.isSpecial ? (
@@ -118,5 +190,10 @@ export default function PlayerHand({
       )}
     </div>
   )
-}
+})
+
+PlayerHand.displayName = 'PlayerHand'
+
+export default PlayerHand
+
 

@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import io from 'socket.io-client'
 import GameHeader from '../components/GameHeader'
 import GameTable from '../components/GameTable'
-import PlayerHand from '../components/PlayerHand'
+import PlayerHand, { type PlayerHandRef } from '../components/PlayerHand'
 import GameControls from '../components/GameControls'
 import GameStatus from '../components/GameStatus'
 import CardComponent from '../components/Card'
 import OpponentPlayer from '../components/OpponentPlayer'
 import ProtectedRoute from '../components/ProtectedRoute'
+import CardMoveAnimation from '../components/CardMoveAnimation'
 import { useAuth } from '../contexts/AuthContext'
 import { apiService } from '../services/api'
 import { SOCKET_URL } from '../config/api'
@@ -58,6 +59,21 @@ export default function GamePage() {
   const [canPlay, setCanPlay] = useState(false)
   const [myIndex, setMyIndex] = useState(-1)
   const centerCardsRef = useRef<HTMLDivElement>(null)
+  
+  // Animation state
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [animatingCards, setAnimatingCards] = useState<Card[]>([])
+  const [cardStartPositions, setCardStartPositions] = useState<Array<{ x: number; y: number }>>([])
+  const [cardEndPosition, setCardEndPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [excludedCards, setExcludedCards] = useState<Card[]>([])
+  const playerHandRef = useRef<PlayerHandRef>(null)
+  const pendingEmitRef = useRef<{
+    choosedCard: Card[]
+    roomId: number
+    double: number
+    effectOpen: boolean
+    effectkind: string
+  } | null>(null)
 
   useEffect(() => {
     const initializeRoom = async () => {
@@ -210,6 +226,33 @@ export default function GamePage() {
     }
   }, [selectedCards, roomData, myIndex])
 
+  // Animation complete handler - use ref to avoid stale closures
+  // MUST be declared before any early returns to maintain hook order
+  const handleAnimationCompleteRef = useRef<() => void>(() => {})
+  
+  useEffect(() => {
+    handleAnimationCompleteRef.current = () => {
+      setIsAnimating(false)
+      
+      // Emit socket event after animation completes
+      if (pendingEmitRef.current && socketRef.current) {
+        socketRef.current.emit('shutcards', pendingEmitRef.current)
+        pendingEmitRef.current = null
+      }
+      
+      // Clear animation state after a brief delay
+      setTimeout(() => {
+        setAnimatingCards([])
+        setExcludedCards([])
+        setCardStartPositions([])
+      }, 100)
+    }
+  }, [])
+
+  const handleAnimationComplete = () => {
+    handleAnimationCompleteRef.current()
+  }
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -252,7 +295,7 @@ export default function GamePage() {
   }
 
   const handlePlayCards = () => {
-    if (!socketRef.current || !roomId || selectedCards.length === 0 || !canPlay) {
+    if (!socketRef.current || !roomId || selectedCards.length === 0 || !canPlay || isAnimating) {
       return
     }
 
@@ -262,6 +305,7 @@ export default function GamePage() {
       return
     }
 
+    // Prepare emit data
     let double = roomData?.double || 1
     let effectOpen = false
     let effectkind = ''
@@ -279,16 +323,81 @@ export default function GamePage() {
       effectkind = 'tawang'
     }
 
-    socketRef.current?.emit('shutcards', {
+    // Store emit data in ref (will be used after animation completes)
+    pendingEmitRef.current = {
       choosedCard: selectedCards,
       roomId: parseInt(roomId, 10),
       double: double,
       effectOpen: effectOpen,
       effectkind: effectkind,
-    })
+    }
 
-    setSelectedCards([])
+    // Get card positions for animation
+    if (playerHandRef.current && centerCardsRef.current && selectedCards.length > 0) {
+      const myCards = myIndex >= 0 && roomData?.havingCards ? roomData.havingCards[myIndex] || [] : []
+      
+      // Find indices of selected cards
+      const selectedIndices: number[] = []
+      selectedCards.forEach((selectedCard) => {
+        const index = myCards.findIndex(
+          (card) => card.type === selectedCard.type && card.number === selectedCard.number
+        )
+        if (index !== -1) {
+          selectedIndices.push(index)
+        }
+      })
+
+      if (selectedIndices.length > 0) {
+        // Use requestAnimationFrame to ensure DOM is ready before getting positions
+        requestAnimationFrame(() => {
+          // Double-check refs are still valid
+          if (!playerHandRef.current || !centerCardsRef.current) {
+            // Fallback: emit immediately
+            if (pendingEmitRef.current && socketRef.current) {
+              socketRef.current.emit('shutcards', pendingEmitRef.current)
+              pendingEmitRef.current = null
+            }
+            return
+          }
+
+          // Get start positions
+          const startPositions = playerHandRef.current.getSelectedCardPositions(selectedIndices)
+          
+          // Validate positions
+          if (startPositions.length !== selectedCards.length || startPositions.some(pos => pos.x === 0 && pos.y === 0)) {
+            console.warn('Invalid start positions, using fallback')
+            // Fallback: emit immediately
+            if (pendingEmitRef.current && socketRef.current) {
+              socketRef.current.emit('shutcards', pendingEmitRef.current)
+              pendingEmitRef.current = null
+            }
+            return
+          }
+          
+          // Get end position
+          const centerRect = centerCardsRef.current.getBoundingClientRect()
+          const endX = centerRect.left + centerRect.width / 2 + window.scrollX
+          const endY = centerRect.top + centerRect.height / 2 + window.scrollY
+          
+          setCardStartPositions(startPositions)
+          setCardEndPosition({ x: endX, y: endY })
+          setAnimatingCards([...selectedCards])
+          setExcludedCards([...selectedCards])
+          setIsAnimating(true)
+          setSelectedCards([]) // Clear selection immediately
+        })
+        return // Exit early, animation will trigger emit
+      }
+    }
+
+    // Fallback: emit immediately if animation setup fails
+    if (pendingEmitRef.current && socketRef.current) {
+      socketRef.current.emit('shutcards', pendingEmitRef.current)
+      pendingEmitRef.current = null
+      setSelectedCards([])
+    }
   }
+
 
   const handlePass = () => {
     if (!socketRef.current || !roomId) return
@@ -426,9 +535,11 @@ export default function GamePage() {
                   playerHand={
                     roomData?.isStart ? (
                       <PlayerHand
+                        ref={playerHandRef}
                         cards={myCards}
                         onCardSelectionChange={handleCardSelectionChange}
                         isMyTurn={isMyTurn}
+                        excludeCards={excludedCards}
                       />
                     ) : undefined
                   }
@@ -604,6 +715,13 @@ export default function GamePage() {
           </div>
         </div>
       </div>
+      <CardMoveAnimation
+        cards={animatingCards}
+        startPositions={cardStartPositions}
+        endPosition={cardEndPosition}
+        onAnimationComplete={handleAnimationComplete}
+        isAnimating={isAnimating}
+      />
     </ProtectedRoute>
   )
 }
