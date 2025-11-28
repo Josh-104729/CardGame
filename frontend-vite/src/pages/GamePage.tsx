@@ -52,7 +52,7 @@ export default function GamePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
-
+  
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null)
   const [roomData, setRoomData] = useState<RoomData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,7 +69,7 @@ export default function GamePage() {
   const [cardEndPositions, setCardEndPositions] = useState<Array<{ x: number; y: number }>>([])
   const [excludedCards, setExcludedCards] = useState<Card[]>([])
   const playerHandRef = useRef<PlayerHandRef>(null)
-  
+
   // Card deal animation state
   const [isDealingCards, setIsDealingCards] = useState(false)
   const [dealStartPosition, setDealStartPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -78,6 +78,13 @@ export default function GamePage() {
   const prevRestCardCntRef = useRef<number>(0)
   const playerPositionRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const roomDataRef = useRef<RoomData | null>(null)
+  
+  // Opponent card play animation state (for when other players play cards)
+  const [isOpponentPlaying, setIsOpponentPlaying] = useState(false)
+  const [opponentPlayingCards, setOpponentPlayingCards] = useState<Card[]>([])
+  const [opponentPlayStartPositions, setOpponentPlayStartPositions] = useState<Array<{ x: number; y: number }>>([])
+  const [opponentPlayEndPositions, setOpponentPlayEndPositions] = useState<Array<{ x: number; y: number }>>([])
+  const prevDroppingCardsRef = useRef<Array<Card[]>>([]) // Track previous droppingCards to detect changes
   const pendingEmitRef = useRef<{
     choosedCard: Card[]
     roomId: number
@@ -170,7 +177,7 @@ export default function GamePage() {
           if (param.roomId === roomIdNum) {
             const prevRestCardCnt = prevRestCardCntRef.current
             const currentRestCardCnt = param.roomData.restCardCnt || 0
-            
+
             // Detect if cards are being dealt (restCardCnt decreased)
             // This should work for ALL clients, not just the creator
             // All clients receive the same update event when cards are dealt
@@ -180,15 +187,15 @@ export default function GamePage() {
               // First time seeing restCardCnt - initialize it
               prevRestCardCntRef.current = currentRestCardCnt
             }
-            
+
             // Now check if cards are being dealt (restCardCnt decreased)
             const cardsDealt = prevRestCardCnt > 0 && prevRestCardCnt > currentRestCardCnt && param.roomData.isStart && currentRestCardCnt >= 0
-            
+
             if (cardsDealt && centerCardsRef.current) {
-              
+
               // Store the new room data to apply after animation
               setPendingRoomData(param.roomData)
-              
+
               // Get position from RIGHT side of remaining cards stack
               // Cards are stacked with ml-[-70px], creating overlapping effect
               // The first card (index 0) is at center, subsequent cards shift left by 70px each
@@ -198,15 +205,15 @@ export default function GamePage() {
               // Rightmost card is the first one (index 0) at center, right edge is center + cardWidth/2
               const startX = centerRect.left + centerRect.width / 2 + (cardWidth / 2)
               const startY = centerRect.top + centerRect.height / 2
-              
+
               setDealStartPosition({ x: startX, y: startY })
-              
+
               // Calculate end positions for each player using calculatedPosition
               // We need to get the GameTable container to convert percentage positions to pixels
               const collectPositions = () => {
                 const endPositions: Array<{ x: number; y: number }> = []
                 const roomSize = param.roomData.size || 4
-                
+
                 // Get the GameTable container to convert percentage positions to pixels
                 const gameTableContainer = centerCardsRef.current?.parentElement?.parentElement
                 if (!gameTableContainer) {
@@ -214,31 +221,31 @@ export default function GamePage() {
                   setTimeout(() => collectPositions(), 100)
                   return
                 }
-                
+
                 const containerRect = gameTableContainer.getBoundingClientRect()
-                
+
                 // Find current user's index in the original users array for this roomData
                 const currentUserIndexForDeal = param.roomData.userArray.findIndex(
                   (u) => u.username === user?.username
                 )
-                
+
                 // Rotate users array so current user is at index 0 (for display purposes)
                 const rotateUsersArray = <T,>(arr: T[], startIndex: number): T[] => {
                   if (startIndex <= 0 || startIndex >= arr.length) return arr
                   return [...arr.slice(startIndex), ...arr.slice(0, startIndex)]
                 }
-                
+
                 const rotatedUsersForDeal = rotateUsersArray(
                   param.roomData.userArray,
                   currentUserIndexForDeal >= 0 ? currentUserIndexForDeal : 0
                 )
-                
+
                 // Map rotated users back to their original indices
                 const getOriginalIndexForDeal = (rotatedIndex: number): number => {
                   if (currentUserIndexForDeal < 0) return rotatedIndex
                   return (currentUserIndexForDeal + rotatedIndex) % param.roomData.userArray.length
                 }
-                
+
                 // Create all player slots (rotated so current user is at displayIndex 0)
                 const allPlayerSlotsForDeal = rotatedUsersForDeal.map((playerUser, rotatedIndex) => ({
                   user: playerUser,
@@ -246,18 +253,18 @@ export default function GamePage() {
                   originalIndex: getOriginalIndexForDeal(rotatedIndex),
                   isEmpty: false,
                 }))
-                
+
                 // Now collect positions in the order of userArray indices (0, 1, 2, 3...)
                 for (let i = 0; i < roomSize; i++) {
                   // Find the slot that corresponds to userArray[i]
                   const slot = allPlayerSlotsForDeal.find(s => s.originalIndex === i)
-                  
+
                   if (slot) {
                     // Calculate position using the same logic as when rendering
                     const calculatedPosition = calculateEllipsePosition(slot.displayIndex, roomSize)
-                    
+
                     let position: { x: number; y: number }
-                    
+
                     if (calculatedPosition === 'bottom') {
                       // Current user at bottom - get position from DOM ref
                       const playerElement = playerPositionRefs.current.get(i)
@@ -285,17 +292,17 @@ export default function GamePage() {
                       // Fallback position
                       position = { x: 0, y: 0 }
                     }
-                    
+
                     endPositions.push(position)
                   } else {
                     // Fallback position if slot not found
                     endPositions.push({ x: 0, y: 0 })
                   }
                 }
-                
+
                 // Check if we have valid positions for all players
                 const validPositions = endPositions.filter(pos => pos.x !== 0 || pos.y !== 0)
-                
+
                 // Log CardDealAnimation positions: From {position} To {Position} - Player {No}
                 // Log even if not all positions are valid, so we can see what's happening
                 if (endPositions.length > 0) {
@@ -304,7 +311,7 @@ export default function GamePage() {
                     console.log(`From {x: ${Math.round(startX)}, y: ${Math.round(startY)}} To {x: ${Math.round(endPos.x)}, y: ${Math.round(endPos.y)}} - Player ${playerName}`)
                   })
                 }
-                
+
                 if (endPositions.length === roomSize && validPositions.length === roomSize) {
                   // All positions found, start animation
                   setDealEndPositions(endPositions)
@@ -316,14 +323,14 @@ export default function GamePage() {
                   }, 100)
                 }
               }
-              
+
               // Start collecting positions after a short delay to ensure DOM is ready
               setTimeout(() => {
                 requestAnimationFrame(() => {
                   collectPositions()
                 })
               }, 100)
-              
+
               // Update prevRestCardCnt AFTER triggering animation
               // This ensures the next deal can be detected
               prevRestCardCntRef.current = currentRestCardCnt
@@ -337,29 +344,163 @@ export default function GamePage() {
                 // Update when restCardCnt changes (but not a deal)
                 prevRestCardCntRef.current = currentRestCardCnt
               }
+
+              // Detect if any player (including current user) played cards
+              const prevDroppingCards = prevDroppingCardsRef.current
+              const currentPrevOrder = param.roomData.prevOrder
+              const currentDroppingCards = param.roomData.droppingCards[currentPrevOrder] || []
+              const prevDroppingCardsForOrder = prevDroppingCards[currentPrevOrder] || []
+            
+            // Find current user's index
+            const userIndex = param.roomData.userArray.findIndex(
+              (u) => u.username === user.username
+            )
               
-              setRoomData(param.roomData)
-              setLoading(false)
-              setError('')
-
-              // Find current user's index
-              const userIndex = param.roomData.userArray.findIndex(
-                (u) => u.username === user.username
-              )
-              setMyIndex(userIndex)
-
-              // Clear selection when counter resets
-              if (param.roomData.counterCnt === 0) {
-                setSelectedCards([])
-              }
-
-              // Check if current user is still in the room
-              if (userIndex === -1 && param.roomData.isStart) {
-                // User was removed from the room
-                setError('You were removed from the room')
+              // Check if cards were just played by someone (including current user)
+              // Cards were played if droppingCards[prevOrder] changed and has cards
+              const cardsJustPlayed = param.roomData.isStart && 
+                                     currentDroppingCards.length > 0 && 
+                                     (prevDroppingCardsForOrder.length === 0 || 
+                                      JSON.stringify(prevDroppingCardsForOrder) !== JSON.stringify(currentDroppingCards))
+              
+              if (cardsJustPlayed && centerCardsRef.current && currentPrevOrder >= 0 && !isAnimating) {
+                // A player just played cards - animate from their position to center
+                // This animation is shown to ALL users, including when current user plays
+                const playingPlayerIndex = currentPrevOrder
+                const playedCards = currentDroppingCards
+                
+                // IMPORTANT: Set animation state FIRST to hide center cards immediately
+                // Store room data to apply after animation completes
+                setIsOpponentPlaying(true)
+                setPendingRoomData(param.roomData)
+                
+                // Don't apply roomData update here - wait for animation to complete
+                
+                // Get playing player's position using calculatedPosition
+                const getOpponentPlayPositions = () => {
+                  const roomSize = param.roomData.size || 4
+                  const gameTableContainer = centerCardsRef.current?.parentElement?.parentElement
+                  if (!gameTableContainer) {
+                    setTimeout(() => getOpponentPlayPositions(), 100)
+                    return
+                  }
+                  
+                  const containerRect = gameTableContainer.getBoundingClientRect()
+                  
+                  // Find current user's index to calculate display positions
+                  const currentUserIndexForAnim = param.roomData.userArray.findIndex(
+                    (u) => u.username === user?.username
+                  )
+                  
+                  // Calculate displayIndex of the playing player
+                  const getDisplayIndex = (originalIndex: number): number => {
+                    if (currentUserIndexForAnim < 0) return originalIndex
+                    const diff = originalIndex - currentUserIndexForAnim
+                    return diff >= 0 ? diff : diff + param.roomData.userArray.length
+                  }
+                  
+                  const playingPlayerDisplayIndex = getDisplayIndex(playingPlayerIndex)
+                  const calculatedPosition = calculateEllipsePosition(playingPlayerDisplayIndex, roomSize)
+                  
+                  let startPosition: { x: number; y: number }
+                  
+                  if (calculatedPosition === 'bottom') {
+                    // Current user played - get position from DOM ref
+                    const playerElement = playerPositionRefs.current.get(playingPlayerIndex)
+                    if (playerElement) {
+                      playerElement.offsetHeight
+                      const rect = playerElement.getBoundingClientRect()
+                      startPosition = {
+                        x: rect.left + rect.width / 2,
+                        y: rect.top + rect.height / 2,
+                      }
+                    } else {
+                      startPosition = {
+                        x: containerRect.left + containerRect.width / 2,
+                        y: containerRect.bottom - 80,
+                      }
+                    }
+                  } else if (typeof calculatedPosition === 'object' && calculatedPosition.usePercent) {
+                    // Convert percentage to pixels
+                    startPosition = {
+                      x: containerRect.left + (containerRect.width * calculatedPosition.x / 100),
+                      y: containerRect.top + (containerRect.height * calculatedPosition.y / 100),
+                    }
+                  } else {
+                    // Fallback
+                    startPosition = { x: 0, y: 0 }
+                  }
+                  
+                  // Calculate end positions for center cards
+                  if (!centerCardsRef.current) {
+                    // Fallback: apply update immediately if not current user
+                    // If current user, their animation will handle the update
+                    if (playingPlayerIndex !== userIndex) {
+                      setRoomData(param.roomData)
+                      setLoading(false)
+                      setError('')
+                      setMyIndex(userIndex)
+                    }
+                    return
+                  }
+                  
+                  const centerRect = centerCardsRef.current.getBoundingClientRect()
+                  const centerX = centerRect.left + centerRect.width / 2
+                  const centerY = centerRect.top + centerRect.height / 2
+                  
+                  const cardWidth = 80 // w-20 = 80px
+                  const cardGap = 16 // gap-4 = 16px
+                  const totalWidth = playedCards.length * cardWidth + (playedCards.length - 1) * cardGap
+                  const startX = centerX - totalWidth / 2 + cardWidth / 2
+                  
+                  const endPositions = playedCards.map((_, index) => ({
+                    x: startX + index * (cardWidth + cardGap),
+                    y: centerY,
+                  }))
+                  
+                  const startPositions = Array(playedCards.length).fill(startPosition)
+                  
+                  setOpponentPlayStartPositions(startPositions)
+                  setOpponentPlayEndPositions(endPositions)
+                  setOpponentPlayingCards(playedCards)
+                }
+                
+                // Get positions after a short delay
                 setTimeout(() => {
-                  navigate('/lobby')
-                }, 2000)
+                  requestAnimationFrame(() => {
+                    getOpponentPlayPositions()
+                  })
+                }, 100)
+                
+                // Update prevDroppingCards to track the change
+                prevDroppingCardsRef.current = param.roomData.droppingCards.map(cards => [...cards])
+                
+                // Don't apply roomData here - it will be applied after animation completes
+                // This prevents center cards from showing before animation
+                return // Exit early to prevent normal update logic
+              } else {
+                // Normal update - apply immediately (no cards were just played)
+                setRoomData(param.roomData)
+                setLoading(false)
+                setError('')
+            setMyIndex(userIndex)
+            
+            // Clear selection when counter resets
+            if (param.roomData.counterCnt === 0) {
+              setSelectedCards([])
+            }
+            
+            // Check if current user is still in the room
+            if (userIndex === -1 && param.roomData.isStart) {
+              // User was removed from the room
+              setError('You were removed from the room')
+              setTimeout(() => {
+                navigate('/lobby')
+              }, 2000)
+            }
+                
+                // Update prevDroppingCards for normal updates (not card play)
+                prevDroppingCardsRef.current = param.roomData.droppingCards.map(cards => [...cards])
               }
             }
             // Note: prevRestCardCntRef is updated in the cardsDealt branch (line 323) 
@@ -387,14 +528,14 @@ export default function GamePage() {
           }
         })
 
-                // Handle disconnect
-                socket.on('disconnect', () => {
-                  // Socket disconnected
-                })
-              } catch (err) {
-                setError('Failed to join room')
-                setLoading(false)
-              }
+        // Handle disconnect
+        socket.on('disconnect', () => {
+          // Socket disconnected
+        })
+      } catch (err) {
+        setError('Failed to join room')
+        setLoading(false)
+      }
     }
 
     initializeRoom()
@@ -457,7 +598,7 @@ export default function GamePage() {
     // Check if cards can beat previous cards
     const lastOrder = currentRoomData.prevOrder
     const previousCards = currentRoomData.droppingCards[lastOrder] || []
-
+    
     if (lastOrder === currentRoomData.order || previousCards.length === 0) {
       // First play or same player's turn
       setCanPlay(selectedCards.length > 0)
@@ -499,13 +640,47 @@ export default function GamePage() {
   // Card deal animation complete handler
   const handleDealAnimationComplete = () => {
     setIsDealingCards(false)
-    
+
     // Apply pending room data after animation completes
+    if (pendingRoomData) {
+      // Update prevRestCardCnt to the new value after animation
+      prevRestCardCntRef.current = pendingRoomData.restCardCnt || 0
+      
+      setRoomData(pendingRoomData)
+      setLoading(false)
+      setError('')
+
+      const userIndex = pendingRoomData.userArray.findIndex(
+        (u) => u.username === user?.username
+      )
+      setMyIndex(userIndex)
+
+      // Clear selection when counter resets
+      if (pendingRoomData.counterCnt === 0) {
+        setSelectedCards([])
+      }
+
+      // Update prevDroppingCards after applying new data
+      prevDroppingCardsRef.current = pendingRoomData.droppingCards.map(cards => [...cards])
+
+      setPendingRoomData(null)
+    }
+
+    // Clear animation state
+    setTimeout(() => {
+      setDealStartPosition({ x: 0, y: 0 })
+      setDealEndPositions([])
+    }, 100)
+  }
+
+  // Opponent play animation complete handler
+  const handleOpponentPlayComplete = () => {
+    // Apply pending room data FIRST, then hide animation
+    // This ensures center cards are displayed from the updated roomData
     if (pendingRoomData) {
       setRoomData(pendingRoomData)
       setLoading(false)
       setError('')
-      
       const userIndex = pendingRoomData.userArray.findIndex(
         (u) => u.username === user?.username
       )
@@ -516,16 +691,20 @@ export default function GamePage() {
         setSelectedCards([])
       }
       
-      // Update previous restCardCnt after applying new data
-      prevRestCardCntRef.current = pendingRoomData.restCardCnt || 0
+      // Update prevDroppingCards after applying new data
+      prevDroppingCardsRef.current = pendingRoomData.droppingCards.map(cards => [...cards])
       
       setPendingRoomData(null)
     }
     
-    // Clear animation state
+    // Hide animation state - this will show center cards from updated roomData
+    setIsOpponentPlaying(false)
+    
+    // Clear animation state after a brief delay
     setTimeout(() => {
-      setDealStartPosition({ x: 0, y: 0 })
-      setDealEndPositions([])
+      setOpponentPlayingCards([])
+      setOpponentPlayStartPositions([])
+      setOpponentPlayEndPositions([])
     }, 100)
   }
 
@@ -648,8 +827,8 @@ export default function GamePage() {
           // Get start positions
           const startPositions = playerHandRef.current.getSelectedCardPositions(selectedIndices)
 
-                  // Validate positions - check that we have valid positions for all cards
-                  if (startPositions.length !== selectedCards.length) {
+          // Validate positions - check that we have valid positions for all cards
+          if (startPositions.length !== selectedCards.length) {
             // Fallback: emit immediately
             if (pendingEmitRef.current && socketRef.current) {
               socketRef.current.emit('shutcards', pendingEmitRef.current)
@@ -658,13 +837,13 @@ export default function GamePage() {
             return
           }
 
-                  // Check for invalid positions (all zeros might indicate element not found)
-                  const invalidPositions = startPositions.filter(pos => 
-                    (pos.x === 0 && pos.y === 0) || 
-                    (pos.x === window.innerWidth / 2 && pos.y === window.innerHeight / 2)
-                  )
-                  
-                  if (invalidPositions.length > 0 && invalidPositions.length === startPositions.length) {
+          // Check for invalid positions (all zeros might indicate element not found)
+          const invalidPositions = startPositions.filter(pos =>
+            (pos.x === 0 && pos.y === 0) ||
+            (pos.x === window.innerWidth / 2 && pos.y === window.innerHeight / 2)
+          )
+
+          if (invalidPositions.length > 0 && invalidPositions.length === startPositions.length) {
             // Fallback: emit immediately
             if (pendingEmitRef.current && socketRef.current) {
               socketRef.current.emit('shutcards', pendingEmitRef.current)
@@ -708,7 +887,7 @@ export default function GamePage() {
     if (pendingEmitRef.current && socketRef.current) {
       socketRef.current.emit('shutcards', pendingEmitRef.current)
       pendingEmitRef.current = null
-      setSelectedCards([])
+    setSelectedCards([])
     }
   }
 
@@ -743,25 +922,25 @@ export default function GamePage() {
 
   // Find current user's index in the original users array
   const currentUserIndex = myIndex >= 0 ? myIndex : users.findIndex((u) => u.username === user?.username)
-
+  
   // Rotate players array so current user is at index 0 (center/bottom position)
   // This ensures current user is always displayed at the center
   const rotatePlayersArray = <T,>(arr: T[], startIndex: number): T[] => {
     if (startIndex <= 0 || startIndex >= arr.length) return arr
     return [...arr.slice(startIndex), ...arr.slice(0, startIndex)]
   }
-
+  
   const rotatedUsers = rotatePlayersArray(users, currentUserIndex >= 0 ? currentUserIndex : 0)
-
+  
   // Map rotated users back to their original indices for game logic
   const getOriginalIndex = (rotatedIndex: number): number => {
     if (currentUserIndex < 0) return rotatedIndex
     return (currentUserIndex + rotatedIndex) % users.length
   }
-
+  
   // Only show empty slots if game hasn't started yet
   const emptySlotsCount = roomData?.isStart ? 0 : Math.max(0, roomSize - users.length)
-
+  
   // Create array of all player slots (real players + empty placeholders)
   // Rotated so current user is at display index 0 (center/bottom)
   const allPlayerSlots = [
@@ -823,8 +1002,8 @@ export default function GamePage() {
                     <button
                       onClick={handlePause}
                       className={`px-4 py-2 font-semibold rounded-lg shadow-lg transition-all duration-200 ${roomData?.isPaused
-                          ? 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white hover:scale-105'
-                          : 'bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white hover:scale-105'
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white hover:scale-105'
+                        : 'bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white hover:scale-105'
                         }`}
                     >
                       {roomData?.isPaused ? '▶️ Resume' : '⏸️ Pause'}
@@ -835,7 +1014,11 @@ export default function GamePage() {
                 <GameTable
                   ref={centerCardsRef}
                   centerCards={
-                    roomData?.isStart && roomData.droppingCards[roomData.prevOrder]
+                    // Hide center cards during opponent play animation
+                    // Show them after animation completes
+                    isOpponentPlaying
+                      ? []
+                      : roomData?.isStart && roomData.droppingCards[roomData.prevOrder]
                       ? roomData.droppingCards[roomData.prevOrder]
                       : []
                   }
@@ -883,14 +1066,14 @@ export default function GamePage() {
                       // Find current user slot (displayIndex 0)
                       const currentUserSlot = allPlayerSlots.find(slot => slot.displayIndex === 0 && !slot.isEmpty)
                       if (!currentUserSlot || !currentUserSlot.user) return undefined
-
+                      
                       const playerUser = currentUserSlot.user
                       const originalIndex = currentUserSlot.originalIndex
                       const isActive = roomData?.order === originalIndex
-                      const progress = isActive && roomData?.counterCnt !== undefined
-                        ? Math.min(roomData.counterCnt / 10, 1)
+                      const progress = isActive && roomData?.counterCnt !== undefined 
+                        ? Math.min(roomData.counterCnt / 10, 1) 
                         : 0
-
+                      
                       return (
                         <div
                           ref={(el) => {
@@ -901,15 +1084,15 @@ export default function GamePage() {
                             }
                           }}
                         >
-                          <OpponentPlayer
-                            name={playerUser.username}
-                            cardCount={roomData?.havingCards[originalIndex]?.length || 0}
-                            position="bottom"
-                            isActive={isActive}
-                            progress={progress}
-                            isEmpty={false}
-                            inline={true}
-                          />
+                        <OpponentPlayer
+                          name={playerUser.username}
+                          cardCount={roomData?.havingCards[originalIndex]?.length || 0}
+                          position="bottom"
+                          isActive={isActive}
+                          progress={progress}
+                          isEmpty={false}
+                          inline={true}
+                        />
                         </div>
                       )
                     })()
@@ -924,7 +1107,7 @@ export default function GamePage() {
                       const originalIndex = slot.originalIndex
                       // Use displayIndex for position calculation
                       const calculatedPosition = calculateEllipsePosition(slot.displayIndex, roomSize)
-
+                      
                       if (slot.isEmpty) {
                         // Empty placeholder slot
                         if (calculatedPosition === 'bottom') {
@@ -947,15 +1130,15 @@ export default function GamePage() {
                           customPosition: undefined,
                         }
                       }
-
+                      
                       // Real player slot
                       const playerUser = slot.user!
                       const isActive = roomData?.order === originalIndex
                       // Calculate progress: counterCnt goes from 0 to 10 (10 seconds timer)
-                      const progress = isActive && roomData?.counterCnt !== undefined
-                        ? Math.min(roomData.counterCnt / 10, 1)
+                      const progress = isActive && roomData?.counterCnt !== undefined 
+                        ? Math.min(roomData.counterCnt / 10, 1) 
                         : 0
-
+                      
                       if (calculatedPosition === 'bottom') {
                         return {
                           name: playerUser.username,
@@ -1003,13 +1186,13 @@ export default function GamePage() {
                       {/* Show a stack of face-down cards */}
                       <div className="flex items-center justify-center opacity-50 card-shadow">
                         {Array.from({ length: Math.min(roomData.restCardCnt, roomData.restCardCnt) }).map((_, index) => (
-                          <div
-                            key={index}
+                        <div
+                          key={index}
                             className="ml-[-70px]"
-                          >
-                            <CardComponent suit={0} rank={0} isFaceDown={true} />
-                          </div>
-                        ))}
+                        >
+                          <CardComponent suit={0} rank={0} isFaceDown={true} />
+                        </div>
+                      ))}
                       </div>
                       {/* Card Count Number - Centered on the cards */}
                       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" style={{ zIndex: 20 }}>
@@ -1036,9 +1219,9 @@ export default function GamePage() {
                       }}
                       disabled={users.length < roomSize}
                       className={`px-8 py-3 rounded-xl font-bold text-white transition-all duration-200 ${users.length >= roomSize
-                        ? 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 shadow-lg hover:scale-105'
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        }`}
+                          ? 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 shadow-lg hover:scale-105'
+                          : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      }`}
                     >
                       Start Game
                     </button>
@@ -1049,11 +1232,11 @@ export default function GamePage() {
           </div>
         </div>
       </div>
-      <CardMoveAnimation
+          <CardMoveAnimation
         cards={animatingCards}
         startPositions={cardStartPositions}
         endPositions={cardEndPositions}
-        onAnimationComplete={handleAnimationComplete}
+            onAnimationComplete={handleAnimationComplete}
         isAnimating={isAnimating}
       />
       <CardDealAnimation
@@ -1062,6 +1245,14 @@ export default function GamePage() {
         endPositions={dealEndPositions}
         onAnimationComplete={handleDealAnimationComplete}
         isAnimating={isDealingCards}
+      />
+      {/* Opponent card play animation - shows when other players play cards */}
+      <CardMoveAnimation
+        cards={opponentPlayingCards}
+        startPositions={opponentPlayStartPositions}
+        endPositions={opponentPlayEndPositions}
+        onAnimationComplete={handleOpponentPlayComplete}
+        isAnimating={isOpponentPlaying}
       />
     </ProtectedRoute>
   )
