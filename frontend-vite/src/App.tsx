@@ -7,6 +7,7 @@ import GamePage from './pages/GamePage'
 import CreateRoomPage from './pages/CreateRoomPage'
 import TopPlayersPage from './pages/TopPlayersPage'
 import ShopPage from './pages/ShopPage'
+import HowToPlayPage from './pages/HowToPlayPage'
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -63,6 +64,12 @@ function App() {
             path="/shop"
             element={
               isAuthenticated ? <ShopPage /> : <Navigate to="/" replace />
+            }
+          />
+          <Route
+            path="/how-to-play"
+            element={
+              isAuthenticated ? <HowToPlayPage /> : <Navigate to="/" replace />
             }
           />
           <Route

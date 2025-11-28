@@ -365,9 +365,27 @@ export default function GamePage() {
               
               if (cardsJustPlayed && centerCardsRef.current && currentPrevOrder >= 0 && !isAnimating) {
                 // A player just played cards - animate from their position to center
-                // This animation is shown to ALL users, including when current user plays
+                // This animation is shown to ALL users EXCEPT the current user who played
                 const playingPlayerIndex = currentPrevOrder
                 const playedCards = currentDroppingCards
+                
+                // Skip animation if current user played (they have their own animation)
+                if (playingPlayerIndex === userIndex) {
+                  // Current user played - apply update immediately, no opponent animation
+                  setRoomData(param.roomData)
+                  setLoading(false)
+                  setError('')
+                  setMyIndex(userIndex)
+                  
+                  // Clear selection when counter resets
+                  if (param.roomData.counterCnt === 0) {
+                    setSelectedCards([])
+                  }
+                  
+                  // Update prevDroppingCards
+                  prevDroppingCardsRef.current = param.roomData.droppingCards.map(cards => [...cards])
+                  return // Exit early - no animation needed
+                }
                 
                 // IMPORTANT: Set animation state FIRST to hide center cards immediately
                 // Store room data to apply after animation completes

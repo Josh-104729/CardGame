@@ -37,6 +37,7 @@ export default function GameHeader() {
     { path: '/lobby', label: 'Rooms', icon: '🎮' },
     { path: '/top-players', label: 'Top Players', icon: '🏆' },
     { path: '/shop', label: 'Shop', icon: '🛒' },
+    { path: '/how-to-play', label: 'How To Play', icon: '📖' },
   ]
 
   const isActive = (path: string) => location.pathname === path
