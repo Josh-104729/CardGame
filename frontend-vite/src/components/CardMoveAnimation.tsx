@@ -73,17 +73,11 @@ export default function CardMoveAnimation({
 
   // Ensure arrays match
   if (cards.length !== startPositions.length || cards.length !== endPositions.length) {
-    console.warn('CardMoveAnimation: arrays length mismatch', {
-      cardsLength: cards.length,
-      startPositionsLength: startPositions.length,
-      endPositionsLength: endPositions.length
-    })
     return null
   }
 
   // Validate end positions
   if (!endPositions || endPositions.length === 0) {
-    console.warn('CardMoveAnimation: Invalid end positions', endPositions)
     return null
   }
 

@@ -53,7 +53,7 @@ export default function OpponentPlayer({ name, cardCount = 0, position, isActive
   }
 
   return (
-    <div className={containerClass} style={inline ? undefined : positionStyle}>
+    <div className={containerClass} style={inline ? undefined : positionStyle} data-player-name={name}>
       <div className={`w-32 h-32 bg-teal-800/90 backdrop-blur-sm rounded-full shadow-lg border-2 border-teal-600 relative flex items-center justify-center ${isActive ? 'cooldown-effect' : ''}`}>
         {/* Progress bar overlay for cooldown effect */}
         {isActive && (
