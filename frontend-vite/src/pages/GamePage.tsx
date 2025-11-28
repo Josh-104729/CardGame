@@ -376,8 +376,10 @@ export default function GamePage() {
           
           // Get end position
           const centerRect = centerCardsRef.current.getBoundingClientRect()
-          const endX = centerRect.left + centerRect.width / 2 + window.scrollX
-          const endY = centerRect.top + centerRect.height / 2 + window.scrollY
+          // const endX = centerRect.left + centerRect.width / 2 + window.scrollX
+          // const endY = centerRect.top + centerRect.height / 2 + window.scrollY
+          const endX = centerRect.left + centerRect.width / 2
+          const endY = centerRect.top + centerRect.height / 2
           
           setCardStartPositions(startPositions)
           setCardEndPosition({ x: endX, y: endY })

@@ -33,14 +33,18 @@ const PlayerHand = forwardRef<PlayerHandRef, PlayerHandProps>(({
           const rect = cardElement.getBoundingClientRect()
           // Account for scroll position
           return {
-            x: rect.left + rect.width / 2 + window.scrollX,
-            y: rect.top + rect.height / 2 + window.scrollY,
+            // x: rect.left + rect.width / 2 + window.scrollX,
+            // y: rect.top + rect.height / 2 + window.scrollY,
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
           }
         }
         // Return center of viewport as fallback
         return { 
-          x: window.innerWidth / 2 + window.scrollX, 
-          y: window.innerHeight / 2 + window.scrollY 
+          // x: window.innerWidth / 2 + window.scrollX, 
+          // y: window.innerHeight / 2 + window.scrollY 
+          x: window.innerWidth / 2, 
+          y: window.innerHeight / 2, 
         }
       })
     },
