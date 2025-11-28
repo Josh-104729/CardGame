@@ -43,6 +43,7 @@ interface RoomData {
   fee?: number
   bonus?: number
   size?: number
+  isPaused?: boolean
 }
 
 export default function GamePage() {
@@ -296,7 +297,7 @@ export default function GamePage() {
   }
 
   const handlePlayCards = () => {
-    if (!socketRef.current || !roomId || selectedCards.length === 0 || !canPlay || isAnimating) {
+    if (!socketRef.current || !roomId || selectedCards.length === 0 || !canPlay || isAnimating || roomData?.isPaused) {
       return
     }
 
@@ -438,7 +439,7 @@ export default function GamePage() {
     if (pendingEmitRef.current && socketRef.current) {
       socketRef.current.emit('shutcards', pendingEmitRef.current)
       pendingEmitRef.current = null
-      setSelectedCards([])
+    setSelectedCards([])
     }
   }
 
@@ -454,6 +455,13 @@ export default function GamePage() {
   const handleExit = () => {
     if (!socketRef.current || !roomId) return
     socketRef.current.emit('exit', {
+      roomId: parseInt(roomId, 10),
+    })
+  }
+
+  const handlePause = () => {
+    if (!socketRef.current || !roomId) return
+    socketRef.current.emit('pausegame', {
       roomId: parseInt(roomId, 10),
     })
   }
@@ -557,6 +565,13 @@ export default function GamePage() {
               )}
 
               <div className="w-full max-w-6xl mb-4">
+                {roomData?.isPaused && (
+                  <div className="mb-2 text-center">
+                    <div className="inline-block px-6 py-2 bg-orange-600/80 border-2 border-orange-400 rounded-lg">
+                      <p className="text-white font-bold text-lg">⏸️ GAME PAUSED</p>
+                    </div>
+                  </div>
+                )}
                 <GameStatus
                   currentPlayer={users[roomData?.order || 0]?.username || 'Waiting...'}
                   lastPlay={
@@ -593,9 +608,12 @@ export default function GamePage() {
                         onPlayCards={handlePlayCards}
                         onPass={handlePass}
                         onExit={handleExit}
+                        onPause={handlePause}
                         canPlay={canPlay}
                         canPass={canPass || false}
                         isMyTurn={isMyTurn || false}
+                        isHost={roomData?.host === user?.username}
+                        isPaused={roomData?.isPaused || false}
                       />
                     ) : undefined
                   }

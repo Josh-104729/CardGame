@@ -1,6 +1,6 @@
 import io from "socket.io";
 import { Card } from "../types/card";
-import { RoomData, RoomUser, SocketJoinParams, SocketExitParams, SocketStartGameParams, SocketShutCardsParams, SocketPassCardsParams } from "../types";
+import { RoomData, RoomUser, SocketJoinParams, SocketExitParams, SocketStartGameParams, SocketShutCardsParams, SocketPassCardsParams, SocketPauseGameParams } from "../types";
 import { RandomCardsGenerator } from "../utils/randomCardsGenerator";
 import { OutputRestCards } from "../utils/outputRestCards";
 import { OutputSortedCardArray } from "../utils/outputSortedCardArray";
@@ -41,6 +41,7 @@ export class GameSocketHandler {
       socket.on("startgame", (param: SocketStartGameParams) => this.handleStartGame(socket, param));
       socket.on("shutcards", (param: SocketShutCardsParams) => this.handleShutCards(socket, param));
       socket.on("passcards", (param: SocketPassCardsParams) => this.handlePassCards(socket, param));
+      socket.on("pausegame", (param: SocketPauseGameParams) => this.handlePauseGame(socket, param));
     });
   }
 
@@ -69,6 +70,7 @@ export class GameSocketHandler {
         isFinish: false,
         effectKind: "",
         effectOpen: false,
+        isPaused: false,
       };
     }
 
@@ -224,6 +226,11 @@ export class GameSocketHandler {
 
   private handleShutCards(socket: any, param: SocketShutCardsParams): void {
     const { choosedCard, roomId, double, effectkind, effectOpen } = param;
+    
+    // Don't allow actions if game is paused
+    if (this.data[roomId].isPaused) {
+      return;
+    }
     this.data[roomId].prevOrder = this.data[roomId].order;
     this.data[roomId].double = double;
     this.data[roomId].effectKind = effectkind;
@@ -271,6 +278,12 @@ export class GameSocketHandler {
 
   private handlePassCards(socket: any, param: SocketPassCardsParams): void {
     const { roomId } = param;
+    
+    // Don't allow actions if game is paused
+    if (this.data[roomId].isPaused) {
+      return;
+    }
+    
     this.turningOrder(roomId);
     this.io.sockets.emit("update", {
       roomId,
@@ -278,7 +291,46 @@ export class GameSocketHandler {
     });
   }
 
+  private handlePauseGame(socket: any, param: SocketPauseGameParams): void {
+    const { roomId } = param;
+    
+    // Only host can pause/unpause
+    if (this.data[roomId].host !== socket.user) {
+      socket.emit("error", {
+        msg: "Only the host can pause the game",
+        variant: "error",
+      });
+      return;
+    }
+    
+    // Toggle pause state
+    this.data[roomId].isPaused = !this.data[roomId].isPaused;
+    
+    // If pausing, stop the counter timer
+    if (this.data[roomId].isPaused) {
+      if (this.data[roomId].counterIndex) {
+        clearInterval(this.data[roomId].counterIndex);
+        this.data[roomId].counterIndex = null;
+      }
+    } else {
+      // If unpausing, restart the counter timer if game is active
+      if (this.data[roomId].isStart && !this.data[roomId].isFinish) {
+        this.resetRoomCounterTimer(roomId);
+      }
+    }
+    
+    this.io.sockets.emit("update", {
+      roomId,
+      roomData: { ...this.data[roomId], counterIndex: null },
+    });
+  }
+
   private increasingCounterCnt(roomId: number): void {
+    // Don't increase counter if game is paused
+    if (this.data[roomId].isPaused) {
+      return;
+    }
+    
     this.data[roomId].counterCnt += 1;
     if (this.data[roomId].counterCnt === AUTOMATIC_PASS_TIME + 1) {
       this.turningOrder(roomId);

@@ -101,6 +101,10 @@ export interface SocketPassCardsParams {
   roomId: number;
 }
 
+export interface SocketPauseGameParams {
+  roomId: number;
+}
+
 // Room Data Types
 export interface RoomUser {
   username: string;
@@ -131,5 +135,6 @@ export interface RoomData {
   fee?: number;
   bonus?: number;
   size?: number;
+  isPaused?: boolean;
 }
 
