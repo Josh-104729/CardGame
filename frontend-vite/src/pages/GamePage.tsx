@@ -64,7 +64,7 @@ export default function GamePage() {
   const [isAnimating, setIsAnimating] = useState(false)
   const [animatingCards, setAnimatingCards] = useState<Card[]>([])
   const [cardStartPositions, setCardStartPositions] = useState<Array<{ x: number; y: number }>>([])
-  const [cardEndPosition, setCardEndPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [cardEndPositions, setCardEndPositions] = useState<Array<{ x: number; y: number }>>([])
   const [excludedCards, setExcludedCards] = useState<Card[]>([])
   const playerHandRef = useRef<PlayerHandRef>(null)
   const pendingEmitRef = useRef<{
@@ -245,6 +245,7 @@ export default function GamePage() {
         setAnimatingCards([])
         setExcludedCards([])
         setCardStartPositions([])
+        setCardEndPositions([])
       }, 100)
     }
   }, [])
@@ -336,18 +337,26 @@ export default function GamePage() {
     if (playerHandRef.current && centerCardsRef.current && selectedCards.length > 0) {
       const myCards = myIndex >= 0 && roomData?.havingCards ? roomData.havingCards[myIndex] || [] : []
       
-      // Find indices of selected cards
+      // Find indices of selected cards - handle duplicates correctly
       const selectedIndices: number[] = []
+      const usedIndices = new Set<number>() // Track which indices we've already used
+      
       selectedCards.forEach((selectedCard) => {
-        const index = myCards.findIndex(
-          (card) => card.type === selectedCard.type && card.number === selectedCard.number
-        )
-        if (index !== -1) {
-          selectedIndices.push(index)
+        // Find all matching cards, but skip ones we've already used
+        for (let i = 0; i < myCards.length; i++) {
+          if (!usedIndices.has(i)) {
+            const card = myCards[i]
+            if (card && card.type === selectedCard.type && card.number === selectedCard.number) {
+              selectedIndices.push(i)
+              usedIndices.add(i)
+              break // Found a match, move to next selected card
+            }
+          }
         }
       })
 
-      if (selectedIndices.length > 0) {
+      // Validate we found all selected cards
+      if (selectedIndices.length === selectedCards.length && selectedIndices.length > 0) {
         // Use requestAnimationFrame to ensure DOM is ready before getting positions
         requestAnimationFrame(() => {
           // Double-check refs are still valid
@@ -363,9 +372,13 @@ export default function GamePage() {
           // Get start positions
           const startPositions = playerHandRef.current.getSelectedCardPositions(selectedIndices)
           
-          // Validate positions
-          if (startPositions.length !== selectedCards.length || startPositions.some(pos => pos.x === 0 && pos.y === 0)) {
-            console.warn('Invalid start positions, using fallback')
+          // Validate positions - check that we have valid positions for all cards
+          if (startPositions.length !== selectedCards.length) {
+            console.warn('Start positions length mismatch:', {
+              positions: startPositions.length,
+              cards: selectedCards.length,
+              indices: selectedIndices
+            })
             // Fallback: emit immediately
             if (pendingEmitRef.current && socketRef.current) {
               socketRef.current.emit('shutcards', pendingEmitRef.current)
@@ -374,15 +387,44 @@ export default function GamePage() {
             return
           }
           
-          // Get end position
+          // Check for invalid positions (all zeros might indicate element not found)
+          const invalidPositions = startPositions.filter(pos => 
+            (pos.x === 0 && pos.y === 0) || 
+            (pos.x === window.innerWidth / 2 && pos.y === window.innerHeight / 2)
+          )
+          
+          if (invalidPositions.length > 0 && invalidPositions.length === startPositions.length) {
+            console.warn('All positions are invalid/fallback, using fallback emit')
+            // Fallback: emit immediately
+            if (pendingEmitRef.current && socketRef.current) {
+              socketRef.current.emit('shutcards', pendingEmitRef.current)
+              pendingEmitRef.current = null
+            }
+            return
+          }
+          
+          // Calculate end positions for each card
+          // Cards are displayed with flex gap-4 (16px gap) and each card is w-20 (80px wide)
           const centerRect = centerCardsRef.current.getBoundingClientRect()
-          // const endX = centerRect.left + centerRect.width / 2 + window.scrollX
-          // const endY = centerRect.top + centerRect.height / 2 + window.scrollY
-          const endX = centerRect.left + centerRect.width / 2
-          const endY = centerRect.top + centerRect.height / 2
+          const centerX = centerRect.left + centerRect.width / 2
+          const centerY = centerRect.top + centerRect.height / 2
+          
+          const cardWidth = 80 // w-20 = 5rem = 80px
+          const cardGap = 16 // gap-4 = 1rem = 16px
+          const totalWidth = selectedCards.length * cardWidth + (selectedCards.length - 1) * cardGap
+          const startX = centerX - totalWidth / 2 + cardWidth / 2 // First card center position
+          
+          // Calculate individual end positions for each card
+          const endPositions = selectedCards.map((_, index) => {
+            const cardX = startX + index * (cardWidth + cardGap)
+            return {
+              x: cardX,
+              y: centerY,
+            }
+          })
           
           setCardStartPositions(startPositions)
-          setCardEndPosition({ x: endX, y: endY })
+          setCardEndPositions(endPositions)
           setAnimatingCards([...selectedCards])
           setExcludedCards([...selectedCards])
           setIsAnimating(true)
@@ -720,7 +762,7 @@ export default function GamePage() {
       <CardMoveAnimation
         cards={animatingCards}
         startPositions={cardStartPositions}
-        endPosition={cardEndPosition}
+        endPositions={cardEndPositions}
         onAnimationComplete={handleAnimationComplete}
         isAnimating={isAnimating}
       />

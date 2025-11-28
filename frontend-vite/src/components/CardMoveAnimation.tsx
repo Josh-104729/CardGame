@@ -5,7 +5,7 @@ import type { Card as GameCard } from '../utils/cardValidation'
 interface CardMoveAnimationProps {
   cards: GameCard[]
   startPositions: Array<{ x: number; y: number }>
-  endPosition: { x: number; y: number }
+  endPositions: Array<{ x: number; y: number }> // Array of end positions for each card
   onAnimationComplete: () => void
   isAnimating: boolean
 }
@@ -13,7 +13,7 @@ interface CardMoveAnimationProps {
 export default function CardMoveAnimation({
   cards,
   startPositions,
-  endPosition,
+  endPositions,
   onAnimationComplete,
   isAnimating,
 }: CardMoveAnimationProps) {
@@ -72,17 +72,18 @@ export default function CardMoveAnimation({
   }
 
   // Ensure arrays match
-  if (cards.length !== startPositions.length) {
-    console.warn('CardMoveAnimation: cards and startPositions length mismatch', {
+  if (cards.length !== startPositions.length || cards.length !== endPositions.length) {
+    console.warn('CardMoveAnimation: arrays length mismatch', {
       cardsLength: cards.length,
-      positionsLength: startPositions.length
+      startPositionsLength: startPositions.length,
+      endPositionsLength: endPositions.length
     })
     return null
   }
 
-  // Validate end position
-  if (!endPosition || endPosition.x === 0 && endPosition.y === 0) {
-    console.warn('CardMoveAnimation: Invalid end position', endPosition)
+  // Validate end positions
+  if (!endPositions || endPositions.length === 0) {
+    console.warn('CardMoveAnimation: Invalid end positions', endPositions)
     return null
   }
 
@@ -98,16 +99,17 @@ export default function CardMoveAnimation({
       {cards.map((card, index) => {
         const displayCard = convertCard(card)
         const startPos = startPositions[index]
+        const endPos = endPositions[index]
         
-        // Validate start position
-        if (!startPos || (startPos.x === 0 && startPos.y === 0 && index > 0)) {
+        // Validate positions
+        if (!startPos || !endPos || (startPos.x === 0 && startPos.y === 0 && index > 0)) {
           // Skip invalid positions (but allow first card at 0,0 as fallback)
           return null
         }
         
-        // Calculate current position with easing
-        const currentX = startPos.x + (endPosition.x - startPos.x) * progress
-        const currentY = startPos.y + (endPosition.y - startPos.y) * progress
+        // Calculate current position with easing - each card moves to its own end position
+        const currentX = startPos.x + (endPos.x - startPos.x) * progress
+        const currentY = startPos.y + (endPos.y - startPos.y) * progress
 
         // Add slight rotation and scale for visual effect
         const rotation = (progress - 0.5) * 10 // Slight rotation during animation
