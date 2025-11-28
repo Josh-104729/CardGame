@@ -12,10 +12,6 @@
   .card-shadow {
     @apply shadow-lg shadow-black/50;
   }
-  
-  .card-hover {
-    @apply transition-transform duration-200 hover:scale-105 hover:-translate-y-2;
-  }
 }
 
 @keyframes float {

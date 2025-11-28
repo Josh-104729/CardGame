@@ -20,7 +20,7 @@ export default function GameControls({
   }
 
   return (
-    <div className="flex gap-4 items-center justify-center mt-6">
+    <div className="flex gap-4 items-center justify-center">
       <button
         onClick={onPlayCards}
         disabled={!canPlay}

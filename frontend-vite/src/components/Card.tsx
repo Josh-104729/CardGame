@@ -45,7 +45,7 @@ export default function Card({ suit, rank, isSelected = false, isFaceDown = fals
     <div
       className={`w-20 h-28 rounded-lg border-2 ${
         isSelected ? 'border-yellow-400 border-4' : 'border-transparent'
-      } ${isFaceDown ? '' : 'card-shadow'} card-hover overflow-hidden ${
+      } ${isFaceDown ? '' : 'card-shadow'} overflow-hidden ${
         isSelected ? 'ring-4 ring-yellow-400/50' : ''
       }`}
     >

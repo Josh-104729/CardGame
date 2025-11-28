@@ -6,9 +6,10 @@ interface OpponentPlayerProps {
   progress?: number // Progress from 0 to 1 (0 = start, 1 = end of cooldown)
   isEmpty?: boolean // If true, shows an empty placeholder
   customPosition?: { x: number; y: number; usePercent?: boolean } // Custom calculated position (pixels or percent if usePercent=true)
+  inline?: boolean // If true, uses relative positioning instead of absolute
 }
 
-export default function OpponentPlayer({ name, cardCount = 0, position, isActive = false, progress = 0, isEmpty = false, customPosition }: OpponentPlayerProps) {
+export default function OpponentPlayer({ name, cardCount = 0, position, isActive = false, progress = 0, isEmpty = false, customPosition, inline = false }: OpponentPlayerProps) {
   const positionClasses = {
     top: 'top-4 left-1/2 -translate-x-1/2',
     left: 'left-4 top-1/2 -translate-y-1/2',
@@ -33,11 +34,12 @@ export default function OpponentPlayer({ name, cardCount = 0, position, isActive
     : undefined
 
   const positionClassName = customPosition ? '' : (position ? positionClasses[position] : '')
+  const containerClass = inline ? 'relative' : `absolute ${positionClassName}`
 
   if (isEmpty) {
     // Empty placeholder
     return (
-      <div className={`absolute ${positionClassName}`} style={positionStyle}>
+      <div className={containerClass} style={inline ? undefined : positionStyle}>
         <div className="w-32 h-32 bg-teal-800/40 backdrop-blur-sm rounded-full shadow-lg border-2 border-dashed border-teal-600/50 relative flex items-center justify-center opacity-60">
           <div className="text-center relative z-10 flex flex-col items-center justify-center px-2">
             <div className="w-14 h-14 bg-teal-700/50 rounded-full flex items-center justify-center mb-1.5 border-2 border-dashed border-teal-500/50">
@@ -51,7 +53,7 @@ export default function OpponentPlayer({ name, cardCount = 0, position, isActive
   }
 
   return (
-    <div className={`absolute ${positionClassName}`} style={positionStyle}>
+    <div className={containerClass} style={inline ? undefined : positionStyle}>
       <div className={`w-32 h-32 bg-teal-800/90 backdrop-blur-sm rounded-full shadow-lg border-2 border-teal-600 relative flex items-center justify-center ${isActive ? 'cooldown-effect' : ''}`}>
         {/* Progress bar overlay for cooldown effect */}
         {isActive && (
