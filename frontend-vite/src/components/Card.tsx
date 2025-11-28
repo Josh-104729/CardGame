@@ -3,6 +3,7 @@ interface CardProps {
   rank: number // 1-13 (internal rank: 1=3, 2=4, ..., 8=10, 9=J, 10=Q, 11=K, 12=A, 13=2)
   isSelected?: boolean
   isFaceDown?: boolean
+  isMyTurn?: boolean // Enable hover effect only when it's the player's turn
 }
 
 // Map internal rank to real card rank
@@ -31,7 +32,7 @@ const mapInternalRankToRealRank = (internalRank: number): number => {
   return internalRank // Fallback
 }
 
-export default function Card({ suit, rank, isSelected = false, isFaceDown = false }: CardProps) {
+export default function Card({ suit, rank, isSelected = false, isFaceDown = false, isMyTurn = false }: CardProps) {
   // Get card image path
   const getCardImagePath = () => {
     if (isFaceDown) {
@@ -47,6 +48,8 @@ export default function Card({ suit, rank, isSelected = false, isFaceDown = fals
         isSelected ? 'border-yellow-400 border-4' : 'border-transparent'
       } ${isFaceDown ? '' : 'card-shadow'} overflow-hidden ${
         isSelected ? 'ring-4 ring-yellow-400/50' : ''
+      } transition-all duration-300 ease-in-out ${
+        !isFaceDown && !isSelected && isMyTurn ? 'hover:scale-110 hover:-translate-y-4 hover:shadow-2xl hover:shadow-yellow-400/50' : ''
       }`}
     >
       <img

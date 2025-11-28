@@ -151,15 +151,9 @@ const PlayerHand = forwardRef<PlayerHandRef, PlayerHandProps>(({
                 displayIndex > 0 ? '-ml-[30px]' : ''
               } ${
                 isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed'
-              } ${
-                isSelected
-                  ? 'z-50'
-                  : isMyTurn
-                  ? 'z-30'
-                  : ''
               }`}
               style={{
-                zIndex: isSelected ? 50 : displayIndex + 10,
+                zIndex: displayIndex + 10,
               }}
             >
               {displayCard.isSpecial ? (
@@ -168,6 +162,8 @@ const PlayerHand = forwardRef<PlayerHandRef, PlayerHandProps>(({
                     isSelected ? 'border-yellow-400 border-4' : 'border-transparent'
                   } card-shadow overflow-hidden ${
                     isSelected ? 'ring-4 ring-yellow-400/50' : ''
+                  } transition-all duration-300 ease-in-out ${
+                    !isSelected && isMyTurn ? 'hover:scale-110 hover:-translate-y-4 hover:shadow-2xl hover:shadow-yellow-400/50' : ''
                   }`}
                 >
                   <img
@@ -181,6 +177,7 @@ const PlayerHand = forwardRef<PlayerHandRef, PlayerHandProps>(({
                   suit={displayCard.suit}
                   rank={displayCard.rank}
                   isSelected={isSelected}
+                  isMyTurn={isMyTurn}
                 />
               )}
             </div>
