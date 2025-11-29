@@ -1,14 +1,37 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import io from 'socket.io-client'
 import GameHeader from '../components/GameHeader'
 import RoomList from '../components/RoomList'
 import CreateRoomModal from '../components/CreateRoomModal'
 import ProtectedRoute from '../components/ProtectedRoute'
+import { SOCKET_URL } from '../config/api'
 
 export default function LobbyPage() {
   const navigate = useNavigate()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const socketRef = useRef<ReturnType<typeof io> | null>(null)
+
+  // Set up socket connection to listen for room updates
+  useEffect(() => {
+    const socket = io(SOCKET_URL)
+    socketRef.current = socket
+
+    // Listen for room_refetch events from the server
+    socket.on('room_refetch', () => {
+      // Trigger room list refresh when a room is created or updated
+      setRefreshTrigger((prev) => prev + 1)
+    })
+
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
+    }
+  }, [])
 
   const handleRoomCreated = () => {
     // Refresh the room list
